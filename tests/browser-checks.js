@@ -130,7 +130,58 @@ async (page) => {
     await ctx.close();
   }
 
-  // 6. Offline con service worker, spunte ricordate, peso totale
+  // 6. Invito a installare l'app
+  {
+    const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+    const cardState = p => p.evaluate(() => ({ visible: !document.getElementById('install-card').hidden, ios: !document.getElementById('install-ios').hidden, button: !document.getElementById('install-button').hidden }));
+
+    // iPhone in Safari: istruzioni visibili, niente pulsante; "Non ora" lo nasconde anche dopo una ricarica.
+    let { ctx, p } = await open({ userAgent: IPHONE_UA, isMobile: true, hasTouch: true });
+    await p.waitForTimeout(2800);
+    const ios = await cardState(p);
+    check('installa (iPhone): istruzioni Condividi, senza pulsante', ios.visible && ios.ios && !ios.button, JSON.stringify(ios));
+    await p.screenshot({ path: 'C:/Users/Carme/Desktop/AIWORKSPACE/Vario/.playwright-mcp/install-ios.png' });
+    await p.locator('#install-later').tap();
+    await p.reload();
+    await p.waitForTimeout(2800);
+    check('installa (iPhone): dopo "Non ora" non ricompare', !(await cardState(p)).visible);
+    await ctx.close();
+
+    // App già aperta dalla schermata Home: nessun invito.
+    {
+      const c = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: IPHONE_UA, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+      await c.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+      const pg = await c.newPage();
+      await pg.goto(BASE);
+      await pg.waitForTimeout(2800);
+      check('installa: nascosto se l’app è già installata', !(await cardState(pg)).visible);
+      await c.close();
+    }
+
+    // Android: l'evento del browser mostra il pulsante, che avvia l'installazione.
+    ({ ctx, p } = await open({ isMobile: true, hasTouch: true }));
+    await p.evaluate(() => {
+      const ev = new Event('beforeinstallprompt');
+      ev.prompt = () => { window.__prompted = true; };
+      ev.userChoice = Promise.resolve({ outcome: 'accepted' });
+      window.dispatchEvent(ev);
+    });
+    await p.waitForTimeout(2800);
+    const android = await cardState(p);
+    check('installa (Android): pulsante Installa visibile', android.visible && android.button && !android.ios, JSON.stringify(android));
+    await p.locator('#install-button').tap();
+    await p.waitForTimeout(200);
+    check('installa (Android): il pulsante avvia l’installazione e chiude il riquadro', await p.evaluate(() => window.__prompted === true) && !(await cardState(p)).visible);
+    await ctx.close();
+
+    // Computer: nessun invito.
+    ({ ctx, p } = await open({ viewport: { width: 1366, height: 850 } }));
+    await p.waitForTimeout(2800);
+    check('installa: nascosto su computer', !(await cardState(p)).visible);
+    await ctx.close();
+  }
+
+  // 7. Offline con service worker, spunte ricordate, peso totale
   {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     const p = await ctx.newPage();
