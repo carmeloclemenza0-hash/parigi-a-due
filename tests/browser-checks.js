@@ -207,7 +207,36 @@ async (page) => {
     await ctx.close();
   }
 
-  // 8. Contrasto dei testi (WCAG AA) di giorno e di notte, a misura di telefono.
+  // 8. Pulsante luna/sole
+  {
+    const theme = p => p.evaluate(() => ({ theme: document.documentElement.dataset.theme, label: document.getElementById('theme-toggle').getAttribute('aria-label'), bar: document.querySelector('meta[name="theme-color"]').content }));
+    // Telefono in modalità chiara: si parte chiari, un tocco passa allo scuro e la scelta resta dopo una ricarica.
+    let { ctx, p } = await open({ colorScheme: 'light', isMobile: true, hasTouch: true });
+    const start = await theme(p);
+    check('tema: segue il telefono (chiaro)', start.theme === 'light' && start.label === 'Passa al tema scuro', JSON.stringify(start));
+    await p.locator('#theme-toggle').tap();
+    const dark = await theme(p);
+    check('tema: il pulsante passa allo scuro', dark.theme === 'dark' && dark.label === 'Passa al tema chiaro' && dark.bar === '#121c18', JSON.stringify(dark));
+    await p.reload();
+    check('tema: la scelta resta dopo una ricarica', (await theme(p)).theme === 'dark');
+    await p.locator('#theme-toggle').tap();
+    check('tema: secondo tocco torna al chiaro', (await theme(p)).theme === 'light');
+    const header = await p.evaluate(() => {
+      const items = [...document.querySelectorAll('.site-header nav > *')].filter(e => getComputedStyle(e).display !== 'none');
+      return { names: items.map(e => e.id || e.textContent.trim()), inside: items.every(e => e.getBoundingClientRect().right <= document.documentElement.clientWidth) };
+    });
+    check('tema: pulsante a sinistra di Itinerario, menu dentro lo schermo', header.names[0] === 'theme-toggle' && header.names[1] === 'Itinerario' && header.inside, JSON.stringify(header));
+    await ctx.close();
+    // Telefono in modalità scura: si parte scuri.
+    ({ ctx, p } = await open({ colorScheme: 'dark', isMobile: true, hasTouch: true, viewport: { width: 320, height: 700 } }));
+    const night = await theme(p);
+    check('tema: segue il telefono (scuro)', night.theme === 'dark', JSON.stringify(night));
+    const fits = await p.evaluate(() => document.querySelector('.header-inner').scrollWidth <= document.querySelector('.header-inner').clientWidth);
+    check('tema: intestazione a 320px senza tagli', fits);
+    await ctx.close();
+  }
+
+  // 9. Contrasto dei testi (WCAG AA) di giorno e di notte, a misura di telefono.
   // Animazioni ridotte, così niente è a metà dissolvenza; le tappe già fatte sono sbiadite di proposito.
   for (const scheme of ['light', 'dark']) {
     const { ctx, p } = await open({ colorScheme: scheme, reducedMotion: 'reduce', isMobile: true, hasTouch: true });

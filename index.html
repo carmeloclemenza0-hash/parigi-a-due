@@ -3,9 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f5ef" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#121c18" media="(prefers-color-scheme: dark)">
-  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f7f5ef">
   <meta name="description" content="Cinque giorni a Parigi, dal 5 al 9 novembre 2026. Il nostro itinerario, le tappe da ricordare e uno spazio per gli appunti.">
   <title>Parigi, a due · 5–9 novembre 2026</title>
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -25,7 +23,18 @@
   <meta property="og:url" content="https://carmeloclemenza0-hash.github.io/parigi-a-due/">
   <meta property="og:image" content="https://carmeloclemenza0-hash.github.io/parigi-a-due/icons/icon-512.png">
   <link rel="preload" href="fonts/cormorant-garamond-500.woff2" as="font" type="font/woff2" crossorigin>
-  <script>document.documentElement.classList.add('js')</script>
+  <script>
+document.documentElement.classList.add('js');
+/* Tema deciso prima di disegnare la pagina, così non c'è il lampo bianco di notte:
+ * vale la scelta fatta col pulsante luna/sole, altrimenti l'impostazione del telefono. */
+(function () {
+  var saved = null;
+  try { saved = localStorage.getItem('parigi-a-due-2026-v1-theme'); } catch (error) { /* memoria del browser non disponibile */ }
+  var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]').content = dark ? '#121c18' : '#f7f5ef';
+})();
+  </script>
   <style>
 /* Tutte le risorse sono locali. Palette: carta, verde bosco, terracotta. */
 :root{--paper:#f7f5ef;--white:#fffefa;--ink:#263c33;--muted:#646b60;--green:#2e493e;--line:#dfdfd3;--accent:#a4563e;--rose:#eee0d6;--sage:#e6eadd;--lavender:#e9e4ed;--sand:#eee6d6;--blue:#e1e9e8;--serif:Georgia,'Times New Roman',serif;--sans:'Segoe UI',Arial,sans-serif;--radius:10px}
@@ -349,38 +358,55 @@ h1 em{display:inline-block}
   .footer-brand{font-size:40px}
 }
 
-/* ——— Modalità notte: segue l'impostazione scura del telefono ——— */
-@media (prefers-color-scheme:dark){
-  :root{color-scheme:dark;--paper:#121c18;--white:#1a2721;--ink:#ece6d6;--muted:#a9b2a4;--green:#9cc3a8;--line:#2e3d35;--accent:#e49a7c;
-    --rose:#33241f;--sage:#1f2d27;--lavender:#29253a;--sand:#2e281c;--blue:#1b2b2e;
-    --band-text:#c3c9bc;--band-accent:#eaa98d;--route:#7a5546;--note-paper:#18241f;--note-line:#26352d;--note-margin:#6e3f33;--notebook:#151f1b}
-  ::selection{background:#5b3a2e;color:var(--ink)}
-  body{background-image:none}
-  .button.primary:hover{background:#b7d6c1}
-  .day-tab:hover{background:var(--white);border-color:#4a5d51}
-  .day-tab[aria-pressed=true] .tab-top,.day-tab[aria-pressed=true] .tab-date{color:#1a2721}
-  .stop-check{border-color:#5f7166}
-  .stop-check::after{border-color:#121c18}
-  .stop-time.has-clock{background:#3a2a22;color:#f2c6ad;border-color:#5a4033}
-  .type-tag{background:#26352d;color:#bdd2b4}
-  .type-tag.uncertain{background:#3d2a23;color:#f2b99e}
-  .stop-list li{border-color:var(--line)}
-  .stop-links a{border-bottom-color:#4b5d52}
-  .timeline-item.is-done .stop-title{color:var(--muted);text-decoration-color:#6f8a76}
-  .progress-track{background:#2a3830}
-  .aside-highlights{border-top-color:#ffffff1f}
-  .date-label>span{border-left-color:var(--line)}
-  .practical-card{box-shadow:0 10px 24px #0006}
-  /* Cartolina e polaroid restano "carta fotografica" chiara: i loro testi tornano scuri. */
-  .postcard{background:#f4efe3;border-color:#d9d2c0}
-  .postcard-caption{color:#5d6358}
-  .polaroid{background:#f4efe3;border-color:#d9d2c0}
-  .polaroid figcaption span{color:#9a4f38}
-  .round-stamp{background:#f4efe3;color:#a4563e;box-shadow:inset 0 0 0 5px #f4efe3,inset 0 0 0 6px #b3937570}
-  .static-tips{background:var(--white)}
-  .countdown-units>span{box-shadow:none}
-  .install-card{box-shadow:0 14px 40px #0009}
-  .toast{color:#121c18}
+/* ——— Modalità notte ———
+ * Il tema lo decide uno script nell'<head> (scelta salvata col pulsante luna/sole, altrimenti
+ * l'impostazione del telefono) e lo scrive in <html data-theme="dark|light">. */
+:root{color-scheme:light}
+html[data-theme=dark]{color-scheme:dark;--paper:#121c18;--white:#1a2721;--ink:#ece6d6;--muted:#a9b2a4;--green:#9cc3a8;--line:#2e3d35;--accent:#e49a7c;
+  --rose:#33241f;--sage:#1f2d27;--lavender:#29253a;--sand:#2e281c;--blue:#1b2b2e;
+  --band-text:#c3c9bc;--band-accent:#eaa98d;--route:#7a5546;--note-paper:#18241f;--note-line:#26352d;--note-margin:#6e3f33;--notebook:#151f1b}
+html[data-theme=dark] ::selection{background:#5b3a2e;color:var(--ink)}
+html[data-theme=dark] body{background-image:none}
+html[data-theme=dark] .button.primary:hover{background:#b7d6c1}
+html[data-theme=dark] .day-tab:hover{background:var(--white);border-color:#4a5d51}
+html[data-theme=dark] .day-tab[aria-pressed=true] .tab-top,html[data-theme=dark] .day-tab[aria-pressed=true] .tab-date{color:#1a2721}
+html[data-theme=dark] .stop-check{border-color:#5f7166}
+html[data-theme=dark] .stop-check::after{border-color:#121c18}
+html[data-theme=dark] .stop-time.has-clock{background:#3a2a22;color:#f2c6ad;border-color:#5a4033}
+html[data-theme=dark] .type-tag{background:#26352d;color:#bdd2b4}
+html[data-theme=dark] .type-tag.uncertain{background:#3d2a23;color:#f2b99e}
+html[data-theme=dark] .stop-list li{border-color:var(--line)}
+html[data-theme=dark] .stop-links a{border-bottom-color:#4b5d52}
+html[data-theme=dark] .timeline-item.is-done .stop-title{color:var(--muted);text-decoration-color:#6f8a76}
+html[data-theme=dark] .progress-track{background:#2a3830}
+html[data-theme=dark] .aside-highlights{border-top-color:#ffffff1f}
+html[data-theme=dark] .date-label>span{border-left-color:var(--line)}
+html[data-theme=dark] .practical-card{box-shadow:0 10px 24px #0006}
+/* Cartolina e polaroid restano "carta fotografica" chiara: i loro testi tornano scuri. */
+html[data-theme=dark] .postcard{background:#f4efe3;border-color:#d9d2c0}
+html[data-theme=dark] .postcard-caption{color:#5d6358}
+html[data-theme=dark] .polaroid{background:#f4efe3;border-color:#d9d2c0}
+html[data-theme=dark] .polaroid figcaption span{color:#9a4f38}
+html[data-theme=dark] .round-stamp{background:#f4efe3;color:#a4563e;box-shadow:inset 0 0 0 5px #f4efe3,inset 0 0 0 6px #b3937570}
+html[data-theme=dark] .static-tips{background:var(--white)}
+html[data-theme=dark] .countdown-units>span{box-shadow:none}
+html[data-theme=dark] .install-card{box-shadow:0 14px 40px #0009}
+html[data-theme=dark] .toast{color:#121c18}
+
+/* Pulsante luna/sole nell'intestazione, a sinistra di "Itinerario". */
+.theme-toggle{display:inline-grid;place-content:center;width:40px;height:40px;margin-right:-6px;padding:0;border:1px solid #cdd1c2;border-radius:50%;background:var(--white);color:var(--green);transition:background .2s,transform .3s}
+html[data-theme=dark] .theme-toggle{border-color:#3e5046;color:#f2cf8a}
+.theme-toggle:hover{background:var(--sage)}
+.site-header nav .theme-toggle .icon{display:block;width:19px;height:19px;margin:0;stroke-width:1.8}
+@media screen and (max-width:360px){.brand small{white-space:nowrap}.site-header nav{gap:9px}.theme-toggle{width:34px;height:34px}}
+@media screen and (max-width:340px){.brand small{display:none}}
+.site-header nav{align-items:center}
+@media (prefers-reduced-motion:no-preference){.theme-toggle:active{transform:rotate(-25deg) scale(.92)}}
+@media screen and (max-width:600px){
+  /* Il pulsante è il primo elemento del menu: sul telefono resta nascosto "Da ricordare", non "Itinerario". */
+  .site-header nav a:nth-child(2){display:inline-flex}
+  .site-header nav a:nth-child(3){display:none}
+  .theme-toggle{width:38px;height:38px;margin-right:-2px}
 }
 
 /* Invito a installare l'app: riquadro in basso, sopra la barra del telefono. */
@@ -426,7 +452,7 @@ h1 em{display:inline-block}
   <header class="site-header">
     <div class="header-inner wrap">
       <a class="brand" href="#inizio" aria-label="Parigi a due, inizio"><span class="brand-seal">P<span>.</span></span><span>Carnet de voyage<small>PARIGI · NOVEMBRE 2026</small></span></a>
-      <nav aria-label="Navigazione principale"><a href="#itinerario">Itinerario</a><a class="needs-js" href="#da-ricordare">Da ricordare</a><a class="needs-js" href="#appunti">Appunti <svg class="icon"><use href="#i-book"/></svg></a></nav>
+      <nav aria-label="Navigazione principale"><button class="theme-toggle needs-js" id="theme-toggle" type="button" aria-label="Passa al tema scuro"><svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg></button><a href="#itinerario">Itinerario</a><a class="needs-js" href="#da-ricordare">Da ricordare</a><a class="needs-js" href="#appunti">Appunti <svg class="icon"><use href="#i-book"/></svg></a></nav>
     </div>
   </header>
 
@@ -1076,6 +1102,29 @@ window.PARIS_TRIP = {
   document.addEventListener('visibilitychange', () => { if (document.hidden) clearInterval(countdownTimer); else startCountdown(); });
   // Nei giorni del viaggio si salta la copertina e si va dritti alle tappe di oggi.
   if (todayTrip) $('day-panel').scrollIntoView({ block: 'start' });
+
+  // Pulsante luna/sole: cambia tema e ricorda la scelta. Senza una scelta salvata si segue il telefono,
+  // anche se cambia mentre il sito è aperto. Il tema iniziale lo ha già deciso lo script nell'<head>.
+  const THEME_KEY = `${trip.storageKey}-theme`;
+  function savedTheme() {
+    try { return window.localStorage.getItem(THEME_KEY); } catch (error) { return null; }
+  }
+  function applyTheme(theme) {
+    const dark = theme === 'dark';
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.querySelector('meta[name="theme-color"]').content = dark ? '#121c18' : '#f7f5ef';
+    $('theme-toggle').setAttribute('aria-label', dark ? 'Passa al tema chiaro' : 'Passa al tema scuro');
+    $('theme-toggle').innerHTML = icon(dark ? 'sun' : 'moon');
+  }
+  $('theme-toggle').addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    try { window.localStorage.setItem(THEME_KEY, next); } catch (error) { toast('Tema cambiato solo per questa visita: il browser non permette di salvarlo.'); }
+  });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+    if (!savedTheme()) applyTheme(event.matches ? 'dark' : 'light');
+  });
+  applyTheme(document.documentElement.dataset.theme);
 
   // Invito a installare l'app sulla schermata Home.
   // Android/Chrome: il browser ci passa un evento e l'installazione parte con un tocco.
