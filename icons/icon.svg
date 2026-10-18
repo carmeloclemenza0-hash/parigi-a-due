@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Icona dell'app: Torre Eiffel color carta su verde bosco, con il sole della cartolina.
+       Tutto il disegno sta nell'80% centrale, così Android può ritagliarla a cerchio senza tagli. -->
+  <rect width="512" height="512" fill="#2e493e"/>
+  <circle cx="326" cy="200" r="74" fill="#c9785c" opacity=".92"/>
+  <!-- Sagoma con i fianchi curvi che si aprono verso le quattro gambe. -->
+  <path fill="#f7f5ef" d="M253 66 H259 L261 104 Q267 232 302 332 Q322 392 358 436 H302 L288 406 Q256 354 224 406 L210 436 H154 Q190 392 210 332 Q245 232 251 104 Z"/>
+  <g fill="#f7f5ef">
+    <rect x="236" y="176" width="40" height="9" rx="2"/>
+    <rect x="214" y="256" width="84" height="12" rx="2"/>
+    <rect x="190" y="326" width="132" height="13" rx="2"/>
+  </g>
+  <!-- Traliccio: poche linee verdi che alleggeriscono la sagoma. -->
+  <g stroke="#2e493e" stroke-width="3.5" stroke-linecap="round" fill="none">
+    <path d="M243 274 L269 318 M269 274 L243 318"/>
+    <path d="M249 196 L263 240 M263 196 L249 240"/>
+  </g>
+  <path d="M146 448 H366" stroke="#f7f5ef" stroke-width="4" stroke-linecap="round" opacity=".45"/>
+</svg>

@@ -6,7 +6,23 @@
   <meta name="theme-color" content="#f7f5ef">
   <meta name="description" content="Cinque giorni a Parigi, dal 5 al 9 novembre 2026. Il nostro itinerario, le tappe da ricordare e uno spazio per gli appunti.">
   <title>Parigi, a due · 5–9 novembre 2026</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='32' fill='%232e493e'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Georgia' font-size='42' fill='%23f7f5ef'%3EP%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <!-- Installazione sulla schermata Home: icona, nome e apertura a tutto schermo. -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Parigi">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <!-- Sito privato: non compare nei motori di ricerca. Anteprima curata per WhatsApp. -->
+  <meta name="robots" content="noindex">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="it_IT">
+  <meta property="og:title" content="Parigi, a due · 5–9 novembre 2026">
+  <meta property="og:description" content="Il nostro itinerario: cinque giorni tra arte, magia e un po’ di noi.">
+  <meta property="og:url" content="https://carmeloclemenza0-hash.github.io/parigi-a-due/">
+  <meta property="og:image" content="https://carmeloclemenza0-hash.github.io/parigi-a-due/icons/icon-512.png">
+  <link rel="preload" href="fonts/cormorant-garamond-500.woff2" as="font" type="font/woff2" crossorigin>
   <script>document.documentElement.classList.add('js')</script>
   <style>
 /* Tutte le risorse sono locali. Palette: carta, verde bosco, terracotta. */
@@ -46,6 +62,10 @@ body{-webkit-text-size-adjust:100%;text-size-adjust:100%;padding-left:env(safe-a
 .day-panel{scroll-margin-top:24px}
 .stop-time.has-clock{display:inline-flex;align-items:center;justify-content:center;align-self:start;justify-self:start;width:max-content;max-width:100%;background:#ede2d2;color:#79442f;border:1px solid #d7bda2;border-radius:5px;padding:5px 7px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.25;white-space:nowrap}
 .day-tab{min-width:0}
+/* Spazio per il timbro rotondo, che si appoggia sull'angolo in basso a sinistra della cartolina. */
+.postcard-caption{padding-left:60px}
+/* Il titolo della tappa non spunta più la casella: si spunta solo dal cerchio, niente tocchi per sbaglio. */
+.stop-title{cursor:auto}
 .text-button,.source-details summary{min-height:44px}
 textarea{max-width:100%}
 [hidden]{display:none!important}
@@ -130,19 +150,37 @@ textarea{max-width:100%}
   .toast{bottom:max(16px,env(safe-area-inset-bottom))}
   dialog{width:calc(100% - 32px);max-height:calc(100dvh - 48px);overflow-y:auto}
   dialog h2{font-size:28px}dialog p{font-size:14px}
+  /* Leggibilità per strada, anche al sole: nessun testo utile sotto gli 11px. */
+  .brand small{font-size:9px;letter-spacing:.1em}
+  .hero .eyebrow,.section-heading .eyebrow,.day-heading>.eyebrow,.notes-intro .eyebrow{font-size:11px}
+  .date-label{font-size:12px}
+  .tab-top{font-size:11px}.tab-date{font-size:12px}
+  .group-heading h4{font-size:11px}
+  .stop-time{font-size:12px}
+  .type-tag{font-size:11px;padding:2px 7px}
+  .filter-label,.timeline-toolbar{font-size:12px}
+  .day-pagination .text-button{font-size:12px}
+  .progress-card>.storage-status{font-size:11px}
+  .postcard-caption>span:first-child{font-size:9px}
+  /* Le coordinate partono dopo il timbro, che altrimenti le copre. */
+  .postcard-caption{padding-left:64px;gap:8px}
+  .postcard-caption>span{white-space:nowrap}
+  .postcard-caption>span:last-child{font-size:clamp(11px,3.4vw,14px)}
 }
 @media screen and (max-width:360px){
-  .brand{font-size:11px}.brand small{font-size:6.5px}
+  .brand{font-size:11px}.brand small{font-size:8px;letter-spacing:.06em}
   .brand-seal{width:31px;height:31px;font-size:23px}
-  .site-header nav{gap:10px;font-size:10px}
-  .hero .eyebrow{font-size:8px}
-  .date-label{font-size:10px;gap:7px}
+  .site-header nav{gap:10px;font-size:11px}
+  .hero .eyebrow{font-size:10px;letter-spacing:.1em}
+  .date-label{font-size:11px;gap:7px}
   .date-label>span{padding-left:8px;margin-left:0}
   .section-heading h2{font-size:28px}
-  .section-heading .text-button{font-size:10px}
-  .day-nav{gap:4px}.tab-top,.tab-date{font-size:8px}
-  .day-pagination .text-button{font-size:10px}
+  .section-heading .text-button{font-size:11px}
+  .day-nav{gap:4px}.tab-top{font-size:11px}.tab-date{font-size:11px}
+  .day-pagination .text-button{font-size:11px}
 }
+/* Telefoni piccolissimi (320px): le coordinate non ci stanno accanto al timbro, resta la dedica. */
+@media screen and (max-width:340px){.postcard-caption>span:first-child{display:none}.postcard-caption{justify-content:flex-end}}
 @media screen and (pointer:coarse){
   .button,.text-button{min-height:48px}
   .stop-links a{min-height:44px;padding-inline:5px}
@@ -158,8 +196,105 @@ textarea{max-width:100%}
 }
 
 </style>
-  
-  
+  <style>
+/* Ritocchi visivi: caratteri, carta, polaroid, timer e un itinerario più vivo.
+ * Gli stati finali sono lo stile di base: senza animazioni (reduced motion) tutto resta visibile. */
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/cormorant-garamond-500.woff2) format('woff2')}
+@font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:500;font-display:swap;src:url(fonts/cormorant-garamond-500-italic.woff2) format('woff2')}
+@font-face{font-family:'Caveat';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/caveat-500.woff2) format('woff2')}
+:root{--display:'Cormorant Garamond',Georgia,serif;--hand:'Caveat','Segoe Print','Bradley Hand',cursive}
+/* Grana leggera, come la carta di un taccuino. */
+body{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32 0 0 0 0 .29 0 0 0 0 .2 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")}
+/* I titoli grandi passano a Cormorant; le piccole scritte corsive restano su Georgia, più leggibile sotto i 14px. */
+h1,h2,h3,.day-tab strong,.footer-brand{font-family:var(--display);font-weight:500}
+.hero h1{font-size:clamp(84px,8.2vw,118px);letter-spacing:-.03em;line-height:.95}
+h1 em{display:inline-block}
+.section-heading h2{font-size:44px}
+.notes-intro h2{font-size:42px}
+.remember-section h2{font-size:38px}
+.day-heading h3{font-size:40px;letter-spacing:-.02em}
+.day-tab strong{font-size:20px}
+.footer-brand{font-size:28px}
+
+/* Polaroid con la nostra foto, fissata con un pezzo di washi tape sopra il sole della cartolina. */
+.polaroid{position:absolute;z-index:2;top:-18px;right:-12px;width:44%;margin:0;padding:8px 8px 0;background:#fffefa;border:1px solid #ece7da;box-shadow:0 16px 38px #3b36201c,0 2px 6px #3b362012;transform:rotate(6deg)}
+.polaroid img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover}
+.polaroid figcaption{font:500 clamp(18px,1.9vw,24px)/1.05 var(--hand);color:#4a4438;text-align:center;padding:9px 2px 11px;white-space:nowrap}
+.polaroid figcaption span{display:block;margin-top:2px;font-size:.72em;color:var(--accent)}
+.tape{position:absolute;z-index:1;top:-11px;left:50%;width:48%;height:22px;transform:translateX(-50%) rotate(-5deg);background:repeating-linear-gradient(135deg,#e2bfa4d9 0 7px,#ecd2bed9 7px 14px);box-shadow:0 1px 2px #3b362014}
+
+/* Timer verso la partenza. */
+.countdown{margin:0 0 28px}
+.countdown-label{margin:0 0 10px;font-size:11px;font-weight:600;letter-spacing:.19em;text-transform:uppercase;color:var(--accent)}
+.countdown-units{display:flex;gap:10px}
+.countdown-units>span{display:flex;flex-direction:column;align-items:center;min-width:66px;padding:11px 8px 9px;background:var(--white);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px #4c48240e}
+.countdown-units b{font:500 36px/1 var(--display);font-variant-numeric:lining-nums tabular-nums;color:var(--green)}
+.countdown-units small{margin-top:6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.countdown-message{margin:0;font:italic 500 26px/1.3 var(--display);color:var(--green)}
+.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Ogni giorno ha il suo colore, anche sulla fascia del titolo. */
+.day-panel .day-heading{background:var(--day-color,var(--sage));border-radius:var(--radius);padding:26px 28px 2px;margin-bottom:22px;transition:background-color .3s}
+.day-panel .day-heading .area-label{margin-bottom:22px}
+
+/* Spunta: il cerchio fa "pop" e sale un cuoricino. */
+@keyframes pop{0%{transform:scale(.6)}55%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes float-heart{0%{opacity:0;transform:translate(-50%,0) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-36px) scale(1.1)}}
+.stop-check.just-checked{animation:pop .4s ease}
+.heart-burst{position:absolute;z-index:3;width:16px;height:16px;fill:var(--accent);stroke:none;pointer-events:none;animation:float-heart .85s ease-out forwards}
+
+/* Timbro sulla linguetta del giorno completato. */
+@keyframes stamp{from{opacity:0;transform:rotate(-12deg) scale(1.8)}}
+.day-tab.is-complete::after{content:'✓';position:absolute;top:-9px;right:-7px;width:26px;height:26px;display:grid;place-content:center;border:1.5px solid var(--accent);border-radius:50%;background:var(--paper);color:var(--accent);font:700 13px/1 var(--sans);transform:rotate(-12deg);box-shadow:inset 0 0 0 2px var(--paper),inset 0 0 0 3px #a4563e55;animation:stamp .45s ease both}
+
+/* Le tappe compaiono mentre si scorre: la classe "reveal" la mette lo script solo se il movimento è consentito. */
+.reveal .timeline-item{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease}
+.reveal .timeline-item.is-visible{opacity:1;transform:none}
+
+/* Apertura animata della copertina. */
+@keyframes rise{from{opacity:0;transform:translateY(18px)}}
+@keyframes write{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 -12% 0 0)}}
+@keyframes draw{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+@keyframes card-in{from{opacity:0;transform:translateY(26px) rotate(-1deg) scale(.97)}}
+@keyframes drop{0%{opacity:0;transform:translateY(-46px) rotate(16deg)}70%{opacity:1;transform:translateY(4px) rotate(5deg)}100%{transform:rotate(6deg)}}
+@keyframes fade{from{opacity:0}}
+@media (prefers-reduced-motion:no-preference){
+  .hero .eyebrow{animation:rise .7s ease both}
+  .hero h1{animation:rise .8s .1s ease both}
+  .hero h1 em{animation:write 1s .55s cubic-bezier(.6,0,.3,1) both}
+  .hero-heart{stroke-dasharray:100;animation:draw 1.3s 1.2s ease both}
+  .hero-description{animation:rise .7s .35s ease both}
+  .date-label{animation:rise .7s .45s ease both}
+  .countdown{animation:rise .7s .55s ease both}
+  .hero .button{animation:rise .7s .65s ease both}
+  .postcard{animation:card-in .9s .2s ease both}
+  .polaroid{animation:drop .9s .85s cubic-bezier(.3,.7,.4,1) both}
+  .round-stamp{animation:fade .6s 1.3s ease both}
+}
+
+@media(max-width:1050px){.hero h1{font-size:92px}.day-heading h3{font-size:36px}}
+@media(max-width:800px){.hero h1{font-size:80px}}
+@media screen and (max-width:600px){
+  .hero h1{font-size:clamp(76px,22vw,98px)}
+  .section-heading h2{font-size:38px}
+  .notes-intro h2{font-size:36px}
+  .remember-section h2{font-size:33px}
+  .day-heading h3{font-size:clamp(31px,8.6vw,38px)}
+  .day-panel .day-heading{padding:20px 18px 0;margin-inline:-4px}
+  .polaroid{top:-16px;right:0;width:40%;padding:6px 6px 0}
+  .polaroid figcaption{font-size:17px;padding:7px 2px 9px}
+  .tape{height:18px;top:-9px}
+  .countdown{margin-bottom:24px}
+  .countdown-label{font-size:11px}
+  .countdown-units{gap:8px}
+  .countdown-units>span{flex:1;min-width:0;padding:10px 4px 8px}
+  .countdown-units b{font-size:32px}
+  .countdown-units small{font-size:11px;letter-spacing:.06em}
+  .countdown-message{font-size:24px}
+  .day-tab.is-complete::after{top:-7px;right:-5px;width:22px;height:22px;font-size:11px}
+}
+@media screen and (max-height:500px) and (orientation:landscape){.hero h1{font-size:64px}}
+</style>
 </head>
 <body>
   <a class="skip-link" href="#itinerario">Vai all’itinerario</a>
@@ -167,7 +302,7 @@ textarea{max-width:100%}
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
     <symbol id="i-external" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
     <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
-    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6Z"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path pathLength="100" d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6Z"/></symbol>
     <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18m-13 5h2m4 0h2"/></symbol>
     <symbol id="i-print" viewBox="0 0 24 24"><path d="M6 8V3h12v5M6 17H3V9h18v8h-3"/><path d="M6 14h12v7H6zm11-3h1"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
@@ -196,6 +331,17 @@ textarea{max-width:100%}
         <h1 id="hero-title">Parigi,<br><em>a due.</em><svg class="hero-heart" aria-hidden="true"><use href="#i-heart"/></svg></h1>
         <p class="hero-description">Cinque giorni di meraviglia.<br>Tra arte, magia e un po’ di noi.</p>
         <p class="date-label"><svg class="icon"><use href="#i-calendar"/></svg>5 — 9 novembre 2026<span>France</span></p>
+        <div class="countdown needs-js" id="countdown">
+          <p class="countdown-label" id="countdown-label">Mancano alla partenza</p>
+          <div class="countdown-units" id="countdown-units" aria-hidden="true">
+            <span><b data-unit="d">00</b><small>giorni</small></span>
+            <span><b data-unit="h">00</b><small>ore</small></span>
+            <span><b data-unit="m">00</b><small>min</small></span>
+            <span><b data-unit="s">00</b><small>sec</small></span>
+          </div>
+          <p class="countdown-message" id="countdown-message" hidden></p>
+          <span class="visually-hidden" id="countdown-sr"></span>
+        </div>
         <a class="button primary" href="#itinerario">Il nostro itinerario<svg class="icon"><use href="#i-arrow"/></svg></a>
       </div>
       <div class="hero-art">
@@ -203,6 +349,11 @@ textarea{max-width:100%}
           <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MjAiIGhlaWdodD0iNDcwIiB2aWV3Qm94PSIwIDAgNTIwIDQ3MCIgZmlsbD0ibm9uZSI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InNreSIgeDE9IjI2MCIgeTE9IjAiIHgyPSIyNjAiIHkyPSI0NzAiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBzdG9wLWNvbG9yPSIjZWVlNWQ2Ii8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjZjRlZWUzIi8+PC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ic3VuIiB4MT0iMzkwIiB5MT0iNDUiIHgyPSIyNzAiIHkyPSIyNTAiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBzdG9wLWNvbG9yPSIjZDc5Nzc1Ii8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjZTdiOTlhIi8+PC9saW5lYXJHcmFkaWVudD4KICAgIDxwYXR0ZXJuIGlkPSJ3aW5kb3dzIiB3aWR0aD0iMjIiIGhlaWdodD0iMjYiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik03IDhoNnYxMUg3WiIgZmlsbD0iIzc4ODI3NCIgb3BhY2l0eT0iLjUiLz48L3BhdHRlcm4+CiAgICA8Y2xpcFBhdGggaWQ9InJvdW5kIj48cmVjdCB3aWR0aD0iNTIwIiBoZWlnaHQ9IjQ3MCIgcng9IjgiLz48L2NsaXBQYXRoPgogIDwvZGVmcz4KICA8ZyBjbGlwLXBhdGg9InVybCgjcm91bmQpIj4KICAgIDxwYXRoIGZpbGw9InVybCgjc2t5KSIgZD0iTTAgMGg1MjB2NDcwSDB6Ii8+CiAgICA8Y2lyY2xlIGN4PSIzNTEiIGN5PSIxNDMiIHI9IjgzIiBmaWxsPSJ1cmwoI3N1bikiIG9wYWNpdHk9Ii44MiIvPgogICAgPHBhdGggZD0iTTQ0IDEwMWMxMC05IDE2LTkgMjYgMCAxMC05IDE3LTkgMjYgMG0zMjQgODhjNy02IDEyLTYgMTggMCA2LTYgMTEtNiAxOCAwIiBzdHJva2U9IiM3MjdjNmMiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDxwYXRoIGQ9Ik0tMjAgMzEyaDYydi02MGg2M3YtMTloNTJ2NzRoNDJ2LTQ3aDQ0djQ3aDUydi02N2g1NXY0OGg0MHYtMzdoNTd2NjVoNDJ2LTcwaDY2djc2aDMydjE0OEgtMjBaIiBmaWxsPSIjZDNkNWM2Ii8+CiAgICA8cGF0aCBkPSJNLTEyIDI5OWg2OGwtNi0xOEg1Wm01OS01N2g3MmwtMTUtMThINjNabTcwLTE0aDQ0bC03LTEzaC0zMFptMTg2IDRoNTdsLTYtMTNoLTQwWm0xMzIgN2g3MmwtMTQtMThoLTQ0WiIgZmlsbD0iI2ExYTk5NiIvPgogICAgPGcgc3Ryb2tlPSIjM2Q1NTQ3IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+CiAgICAgIDxwYXRoIGQ9Ik0yNDkgNjloMTBsNCA2NiA5IDYyIDE4IDcyIDM1IDgyaC0zNmwtMTctNDFjLTctMjAtMzEtMjAtMzggMGwtMTcgNDFoLTM2bDM1LTgyIDE4LTcyIDktNjJaIiBmaWxsPSIjNmQ3ZDY0Ii8+CiAgICAgIDxwYXRoIGQ9Ik0yNTQgNDR2MjVtLTkgNWgxOG0tMjIgNjFoMjZtLTM3IDYzaDQ4bS02MyA3MWg3OW0tOTIgNDJoMTA3Ii8+CiAgICAgIDxwYXRoIGQ9Im0yNTEgODMgNyAzMi0xMiAyMyAxOSAyNC0yNiAzNCAzNiAzNS01MiAzNyA3NiA0MW0tNDItMjI2LTcgMzIgMTIgMjMtMTkgMjQgMjYgMzQtMzYgMzUgNTIgMzctNzYgNDEiIHN0cm9rZT0iI2Q5ZGJjOCIgc3Ryb2tlLXdpZHRoPSIxLjIiLz4KICAgICAgPHBhdGggZD0iTTIzNyAxOTloMzRtLTQ3IDY5aDYyTTE5NSAzNDBoMjhtNjQgMGgyOCIgc3Ryb2tlPSIjZWNlN2Q4IiBzdHJva2Utd2lkdGg9IjIiLz4KICAgICAgPHBhdGggZD0iTTIyNyAzMDZjMTAtMjUgNDMtMjUgNTQgMCIgc3Ryb2tlPSIjZWNlN2Q4IiBzdHJva2Utd2lkdGg9IjIiLz4KICAgICAgPHBhdGggZD0iTTI0OSA2OWgxMHY4aC0xMFoiIGZpbGw9IiMzMzRmNDAiLz4KICAgIDwvZz4KICAgIDxwYXRoIGQ9Ik0wIDMyOWg4OXYtNTNIOVptMzUyLTFoNzF2LTU4aC03MVptODctM2g4MXYtNzBoLTgxWiIgZmlsbD0iI2IxYjdhNCIvPgogICAgPHBhdGggZD0iTTAgMzI5aDg5di01M0g5Wm0zNTItMWg3MXYtNThoLTcxWm04Ny0zaDgxdi03MGgtODFaIiBmaWxsPSJ1cmwoI3dpbmRvd3MpIi8+CiAgICA8cGF0aCBkPSJNLTQgMjc4aDEwMGwtMTAtMThIMTBabTM0Ny04aDg1bC0xMi0xOGgtNTZabTgzLTE1aDEwNGwtMTUtMTloLTczWiIgZmlsbD0iIzZjN2Q2OSIvPgogICAgPHBhdGggZD0iTTAgMzQ5YzE2MC0xMSAzNDYtMTcgNTIwLTR2MTI1SDBaIiBmaWxsPSIjZTJkN2JmIi8+CiAgICA8cGF0aCBkPSJNMCAzNzZjMTQ4LTI1IDM0OC0xNyA1MjAgOHY4NkgwWiIgZmlsbD0iI2E5YjZhYyIvPgogICAgPHBhdGggZD0iTTAgMzg1YzE0Mi0yNCAzMzQtMTkgNTIwIDZtLTUxNiAzMGMxMTAtMTYgMjkzLTE0IDQyNSA1TTkzIDQ0OWMxNTAtMTAgMjg0LTQgNDI3IDgiIHN0cm9rZT0iI2U1ZTlkZCIgc3Ryb2tlLXdpZHRoPSIxLjYiLz4KICAgIDxwYXRoIGQ9Ik0tMTAgMzY5YzE2Mi0xOSAzNDAtMjEgNTQwLTNsLTEgMTVjLTIwMS0xOS0zODAtMTYtNTM5IDRaIiBmaWxsPSIjOGE5MjdiIi8+CiAgICA8cGF0aCBkPSJNLTEwIDM2OGMxNjItMTkgMzQwLTIxIDU0MC0zIiBzdHJva2U9IiMzZDU1NDciIHN0cm9rZS13aWR0aD0iMiIvPgogICAgPHBhdGggZD0iTTcxIDM2NXYtMTRtNDYgOXYtMTNtNDYgMTF2LTE0bTQ2IDEydi0xNG00NiAxM3YtMTRtNDYgMTN2LTE0bTQ2IDE0di0xM200NiAxNnYtMTVtNDYgMTh2LTE0bTQ2IDE3di0xMyIgc3Ryb2tlPSIjNjM3MTVjIiBzdHJva2Utd2lkdGg9IjIiLz4KICAgIDxwYXRoIGQ9Ik0wIDM1N2MxNjYtMjAgMzUwLTIxIDUyMC0zIiBzdHJva2U9IiM2MzcxNWMiIHN0cm9rZS13aWR0aD0iMS41Ii8+CiAgICA8ZyBmaWxsPSIjNDE1ZDQ4Ij4KICAgICAgPHBhdGggZD0iTTAgMjYzYzMyLTIxIDQ3IDQgMjkgMjUgMzgtMTIgNTEgMjQgMjkgNDEgMzQgNSAzMyA0NC0yIDQ2SDBaIi8+CiAgICAgIDxwYXRoIGQ9Ik01MjAgMjk0Yy0yOC0yMS00NyAwLTMxIDIzLTMwLTYtNDMgMTctMjYgMzUtMjYgOC0yMCAzNCA1IDM0aDUyWiIvPgogICAgPC9nPgogICAgPHBhdGggZD0iTTkgMjc5YzQgNDQgOCA3MiAxNyA5NW00OTEtNjljLTYgMzItMTQgNTMtMjUgNzkiIHN0cm9rZT0iI2I0YmZhNiIgc3Ryb2tlLXdpZHRoPSIxLjEiLz4KICAgIDxnIGZpbGw9IiNlOWVlZTIiPjxwYXRoIGQ9Im0zNDQgNDExIDM4IDItMyA1LTI4LTFaIi8+PHBhdGggZD0iTTM1OSA0MDFoMTJ2MTFoLTEyWiIvPjwvZz4KICAgIDx0ZXh0IHg9IjI4IiB5PSIzOSIgZmlsbD0iIzQ4NjA0ZSIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGxldHRlci1zcGFjaW5nPSIzIj5QQVJJUzwvdGV4dD4KICAgIDx0ZXh0IHg9IjQ5MiIgeT0iMzkiIHRleHQtYW5jaG9yPSJlbmQiIGZpbGw9IiM2MjczNWQiIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjkiIGxldHRlci1zcGFjaW5nPSIyIj5GUkFOQ0U8L3RleHQ+CiAgICA8cGF0aCBkPSJNMjggNTFoMzhtMzkyIDBoMzQiIHN0cm9rZT0iIzgxOTA3OSIgc3Ryb2tlLXdpZHRoPSIuOCIvPgogIDwvZz4KPC9zdmc+Cg==" alt="Illustrazione della Torre Eiffel tra i tetti di Parigi, con la Senna e un sole color pesca" width="520" height="470">
           <div class="postcard-caption"><span>48°51′ N · 2°21′ E</span><span>une escapade à Paris</span></div>
         </div>
+        <figure class="polaroid">
+          <span class="tape" aria-hidden="true"></span>
+          <img src="img/noi.jpg" width="560" height="560" alt="Salvo e Adiel abbracciati in un selfie" decoding="async">
+          <figcaption>Salvo &amp; Adiel<span>Paris · 2026</span></figcaption>
+        </figure>
         <div class="round-stamp" aria-hidden="true"><span>JUSTE</span><svg class="icon"><use href="#i-heart"/></svg><span>NOUS DEUX</span></div>
       </div>
     </section>
@@ -481,6 +632,14 @@ window.PARIS_TRIP = {
   let storageOK = true;
   let toastTimer;
   let state = { version: 1, selectedDay: 1, done: {}, notes: {}, tripNote: '' };
+  const motionOK = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Le tappe compaiono con una dissolvenza mentre si scorre, solo se il movimento è consentito.
+  const revealer = motionOK && 'IntersectionObserver' in window
+    ? new IntersectionObserver(entries => {
+        for (const entry of entries) if (entry.isIntersecting) { entry.target.classList.add('is-visible'); revealer.unobserve(entry.target); }
+      }, { rootMargin: '0px 0px -8% 0px' })
+    : null;
+  if (revealer) document.documentElement.classList.add('reveal');
 
   // Non si accettano chiavi arbitrarie dal salvataggio importato o da localStorage.
   function cleanState(raw) {
@@ -545,14 +704,17 @@ window.PARIS_TRIP = {
     const links = [];
     if (item.query) links.push(`<a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(item.query)}" target="_blank" rel="noopener noreferrer" aria-label="Cerca ${escapeHTML(item.title)} sulla mappa, nuova scheda">Mappa ${icon('external')}</a>`);
     if (item.official) links.push(`<a href="${escapeHTML(item.official)}" target="_blank" rel="noopener noreferrer">Sito ufficiale ${icon('external')}</a>`);
-    return `<li class="timeline-item ${state.done[item.id] ? 'is-done' : ''}" data-stop="${item.id}"><input class="stop-check" type="checkbox" id="${item.id}" data-check="${item.id}" ${state.done[item.id] ? 'checked' : ''} aria-labelledby="title-${item.id}"><span class="stop-time ${/^\d{2}:\d{2}\??$/.test(item.time) ? 'has-clock' : ''}">${escapeHTML(item.time)}</span><div class="stop-content"><div class="stop-header"><label class="stop-title" id="title-${item.id}" for="${item.id}">${escapeHTML(item.title)}</label><span class="type-tag ${uncertain ? 'uncertain' : ''}">${escapeHTML(item.type)}</span></div><p class="stop-text">${escapeHTML(item.text)}</p>${item.list ? `<ul class="stop-list">${item.list.map(text => `<li>${escapeHTML(text)}</li>`).join('')}</ul>` : ''}${links.length ? `<div class="stop-links">${links.join('')}</div>` : ''}</div></li>`;
+    return `<li class="timeline-item ${state.done[item.id] ? 'is-done' : ''}" data-stop="${item.id}"><input class="stop-check" type="checkbox" id="${item.id}" data-check="${item.id}" ${state.done[item.id] ? 'checked' : ''} aria-labelledby="title-${item.id}"><span class="stop-time ${/^\d{2}:\d{2}\??$/.test(item.time) ? 'has-clock' : ''}">${escapeHTML(item.time)}</span><div class="stop-content"><div class="stop-header"><span class="stop-title" id="title-${item.id}">${escapeHTML(item.title)}</span><span class="type-tag ${uncertain ? 'uncertain' : ''}">${escapeHTML(item.type)}</span></div><p class="stop-text">${escapeHTML(item.text)}</p>${item.list ? `<ul class="stop-list">${item.list.map(text => `<li>${escapeHTML(text)}</li>`).join('')}</ul>` : ''}${links.length ? `<div class="stop-links">${links.join('')}</div>` : ''}</div></li>`;
   }
 
   function renderTimeline() {
     const day = currentDay();
     const pendingOnly = $('pending-filter').checked;
     const groups = day.groups.map(group => ({...group, items: group.items.filter(item => !pendingOnly || !state.done[item.id])})).filter(group => group.items.length);
-    $('timeline').innerHTML = groups.length ? groups.map((group, index) => `<section class="timeline-group" aria-labelledby="group-${index}"><div class="group-heading"><h4 id="group-${index}">${escapeHTML(group.label)}</h4><span>${escapeHTML(group.subtitle)}</span></div><ul class="timeline-items">${group.items.map(renderItem).join('')}</ul></section>`).join('') : `<div class="empty-state"><h4>Una giornata piena di ricordi.</h4><p>Hai spuntato tutte le tappe. Disattiva “Solo da fare” per rivederle.</p></div>`;
+    const timeline = $('timeline');
+    timeline.innerHTML = groups.length ? groups.map((group, index) => `<section class="timeline-group" aria-labelledby="group-${index}"><div class="group-heading"><h4 id="group-${index}">${escapeHTML(group.label)}</h4><span>${escapeHTML(group.subtitle)}</span></div><ul class="timeline-items">${group.items.map(renderItem).join('')}</ul></section>`).join('') : `<div class="empty-state"><h4>Una giornata piena di ricordi.</h4><p>Hai spuntato tutte le tappe. Disattiva “Solo da fare” per rivederle.</p></div>`;
+    if (revealer) for (const item of timeline.querySelectorAll('.timeline-item')) revealer.observe(item);
+    if (motionOK && timeline.animate) timeline.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
     updateProgress();
   }
 
@@ -573,6 +735,7 @@ window.PARIS_TRIP = {
       const indicator = button.querySelector('.tab-progress');
       indicator.style.width = `${progress}%`;
       indicator.classList.toggle('has-progress', progress > 0);
+      button.classList.toggle('is-complete', progress === 100);
     }
   }
 
@@ -586,6 +749,7 @@ window.PARIS_TRIP = {
     $('mood-title').textContent = day.mood;
     $('mood-quote').textContent = day.quote;
     document.querySelector('.mood-card').style.backgroundColor = `var(--${day.theme})`;
+    $('day-panel').style.setProperty('--day-color', `var(--${day.theme})`);
     $('aside-highlights').innerHTML = day.highlights.map(text => `<span>${icon('check')}${escapeHTML(text)}</span>`).join('');
     $('day-note').value = state.notes[day.id] || '';
     $('reminder-day-label').textContent = `Giorno ${day.id} · ${day.shortDate}`;
@@ -613,6 +777,63 @@ window.PARIS_TRIP = {
     }
   }
 
+  // Piccola festa quando si spunta una tappa: il cerchio fa "pop" e sale un cuoricino.
+  // La pulizia usa setTimeout e non animationend, che con le animazioni disattivate non arriva.
+  function celebrate(input) {
+    if (!motionOK) return;
+    input.classList.remove('just-checked');
+    void input.offsetWidth; // riavvia l'animazione se la tappa viene rispuntata subito
+    input.classList.add('just-checked');
+    const heart = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    heart.setAttribute('class', 'heart-burst');
+    heart.setAttribute('aria-hidden', 'true');
+    heart.innerHTML = '<use href="#i-heart"/>';
+    heart.style.left = `${input.offsetLeft + input.offsetWidth / 2}px`;
+    heart.style.top = `${input.offsetTop - 6}px`;
+    input.closest('.timeline-item').appendChild(heart);
+    setTimeout(() => { heart.remove(); input.classList.remove('just-checked'); }, 900);
+  }
+
+  // Partenza da casa: giovedì 5 novembre 2026 alle 07:00, ora di Parigi (CET, +01:00).
+  const DEPARTURE = Date.parse('2026-11-05T07:00:00+01:00');
+  const pad2 = value => String(value).padStart(2, '0');
+  let countdownTimer;
+
+  function countdownState(nowMs, todayISO) {
+    if (nowMs < DEPARTURE) {
+      const total = Math.floor((DEPARTURE - nowMs) / 1000);
+      return { mode: 'countdown', d: Math.floor(total / 86400), h: Math.floor(total % 86400 / 3600), m: Math.floor(total % 3600 / 60), s: total % 60 };
+    }
+    const day = trip.days.find(item => item.date === todayISO);
+    return day ? { mode: 'trip', day } : { mode: 'after' };
+  }
+
+  function renderCountdown() {
+    const now = Date.now();
+    const current = countdownState(now, parisToday(new Date(now)));
+    const counting = current.mode === 'countdown';
+    $('countdown-label').hidden = !counting;
+    $('countdown-units').hidden = !counting;
+    $('countdown-message').hidden = counting;
+    if (counting) {
+      for (const unit of ['d', 'h', 'm', 's']) $('countdown-units').querySelector(`[data-unit="${unit}"]`).textContent = pad2(current[unit]);
+      // Il timer non è una regione "live": lo screen reader legge un riassunto solo quando ci arriva.
+      $('countdown-sr').textContent = `Mancano ${current.d} giorni e ${current.h} ore alla partenza.`;
+    } else {
+      $('countdown-message').textContent = current.mode === 'trip'
+        ? `Ci siamo. Giorno ${current.day.id} di ${trip.days.length} · ${current.day.label}`
+        : 'Ci siamo stati ♥ · 5–9 novembre 2026';
+      $('countdown-sr').textContent = '';
+    }
+  }
+
+  // Un aggiornamento al secondo, fermo quando il sito non è sullo schermo (niente batteria sprecata).
+  function startCountdown() {
+    clearInterval(countdownTimer);
+    renderCountdown();
+    countdownTimer = setInterval(renderCountdown, 1000);
+  }
+
   function toast(message) {
     clearTimeout(toastTimer);
     $('toast').textContent = message;
@@ -636,6 +857,7 @@ window.PARIS_TRIP = {
     if (input.checked) state.done[input.dataset.check] = true;
     else delete state.done[input.dataset.check];
     input.closest('.timeline-item').classList.toggle('is-done', input.checked);
+    if (input.checked) celebrate(input);
     save();
     if ($('pending-filter').checked) {
       renderTimeline();
@@ -693,8 +915,19 @@ window.PARIS_TRIP = {
     }
   });
 
+  // Data di oggi a Parigi (AAAA-MM-GG), qualunque sia il fuso impostato sul telefono.
+  function parisToday(now = new Date()) {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' })
+      .formatToParts(now).map(part => [part.type, part.value]));
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
+  // Durante il viaggio si apre sempre sul giorno in corso, anche se l'indirizzo contiene ancora
+  // il #giorno-N dell'ultima consultazione (Safari ricarica le schede rimaste in sospeso).
   const hashDay = window.location.hash.match(/^#giorno-([1-5])$/);
-  if (hashDay) state.selectedDay = Number(hashDay[1]);
+  const todayTrip = trip.days.find(day => day.date === parisToday());
+  if (todayTrip) state.selectedDay = todayTrip.id;
+  else if (hashDay) state.selectedDay = Number(hashDay[1]);
   window.addEventListener('hashchange', () => {
     const match = window.location.hash.match(/^#giorno-([1-5])$/);
     if (match) selectDay(Number(match[1]));
@@ -702,6 +935,17 @@ window.PARIS_TRIP = {
   $('trip-note').value = state.tripNote;
   renderNav();
   renderDay();
+  startCountdown();
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearInterval(countdownTimer); else startCountdown(); });
+  // Nei giorni del viaggio si salta la copertina e si va dritti alle tappe di oggi.
+  if (todayTrip) $('day-panel').scrollIntoView({ block: 'start' });
+
+  // Copia offline del sito (vedi sw.js). Serve HTTPS o localhost: aprendo il file da disco non parte.
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(error => console.warn('Copia offline non attivata:', error));
+    });
+  }
 })();
 
 </script>
