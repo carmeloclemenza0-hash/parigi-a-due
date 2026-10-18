@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f5ef">
+  <meta name="theme-color" content="#f7f5ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121c18" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
   <meta name="description" content="Cinque giorni a Parigi, dal 5 al 9 novembre 2026. Il nostro itinerario, le tappe da ricordare e uno spazio per gli appunti.">
   <title>Parigi, a due · 5–9 novembre 2026</title>
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -300,6 +302,87 @@ h1 em{display:inline-block}
 }
 @media screen and (max-height:500px) and (orientation:landscape){.hero h1{font-size:64px}}
 
+/* ——— Resto della pagina, con la stessa cura della copertina ——— */
+:root{--band-text:#4f564b;--band-accent:#8a4630;--route:#cfa48e;--note-paper:#fffdf6;--note-line:#dfe1d3;--note-margin:#e6b4a6;--notebook:#f3efe3}
+/* Rotta tratteggiata con l'aeroplanino tra copertina e itinerario. */
+.route-divider{position:relative;height:56px;margin-block:0 10px}
+.route-line{display:block;width:100%;height:100%;overflow:visible}
+.route-line path{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 8;stroke-linecap:round;opacity:.55;vector-effect:non-scaling-stroke}
+.route-plane{position:absolute;right:-6px;top:2px;width:28px;height:28px;fill:none;stroke:var(--accent);stroke-width:1.5;stroke-linejoin:round;transform:rotate(6deg)}
+/* Fascia del giorno: disegno grande e sfumato a destra; testi un po' più scuri per il contrasto. */
+.day-panel .day-heading{position:relative;overflow:hidden}
+.day-panel .day-heading>*:not(.day-art){position:relative}
+.day-panel .day-heading>.eyebrow{color:var(--band-accent)}
+.day-panel .day-heading>p:not(.eyebrow),.day-panel .day-heading .area-label{color:var(--band-text)}
+.day-art{position:absolute;right:-12px;bottom:-18px;width:160px;height:160px;fill:none;stroke:var(--ink);stroke-width:.6;stroke-linejoin:round;opacity:.1;pointer-events:none}
+/* Momenti della giornata e linea del tempo come una rotta. */
+.group-icon{width:18px;height:18px;color:var(--accent);stroke-width:1.6}
+.group-heading{gap:10px}
+.timeline-item::before{background:none;width:0;border-left:1.5px dashed var(--route)}
+/* Mood del giorno: citazione scritta a mano. */
+.mood-card>p:not(.eyebrow){font:500 22px/1.25 var(--hand);color:var(--band-text)}
+.mood-card .eyebrow{font-size:11px;color:var(--band-accent)}
+/* "Da ricordare": pagina di quaderno a righe con foglietti attaccati col nastro. */
+.remember-section{background-color:var(--notebook);background-image:repeating-linear-gradient(to bottom,transparent 0 31px,var(--note-line) 31px 32px)}
+.remember-section .practical-grid{gap:34px 26px;padding-top:12px}
+.practical-card{position:relative;background:var(--note-paper);border:0;padding:24px 20px 20px;border-radius:3px;box-shadow:0 10px 24px #4c482414,0 1px 3px #4c48240f;transform:rotate(-1deg)}
+.practical-card:nth-child(even){transform:rotate(1.2deg)}
+.practical-card::before{content:'';position:absolute;top:-10px;left:50%;width:72px;height:20px;transform:translateX(-50%) rotate(-3deg);background:repeating-linear-gradient(135deg,#e2bfa4d9 0 7px,#ecd2bed9 7px 14px)}
+.practical-card:nth-child(3n)::before{background:repeating-linear-gradient(135deg,#bfd0bfd9 0 7px,#d4e0d3d9 7px 14px)}
+.practical-card h3{font:500 22px/1.2 var(--display);margin:0 0 8px;color:var(--ink)}
+.packing-strip{border-top-color:var(--line)}
+/* Taccuino: carta a righe con il margine rosso, testo scritto a mano. */
+.notes-field textarea,.day-note-card textarea{font:500 21px/32px var(--hand);color:var(--ink);background-color:var(--note-paper);background-image:linear-gradient(90deg,transparent 40px,var(--note-margin) 40px 41px,transparent 41px),repeating-linear-gradient(to bottom,transparent 0 31px,var(--note-line) 31px 32px);background-attachment:local;padding:4px 14px 16px 52px;border:1px solid var(--line);border-radius:6px}
+.day-note-card textarea{font-size:19px;line-height:28px;background-image:linear-gradient(90deg,transparent 30px,var(--note-margin) 30px 31px,transparent 31px),repeating-linear-gradient(to bottom,transparent 0 27px,var(--note-line) 27px 28px);padding:2px 10px 12px 40px}
+/* Finale. */
+.site-footer{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding-block:56px 64px}
+.finale-art{width:68px;height:68px;fill:none;stroke:var(--green);stroke-width:.9;stroke-linejoin:round;margin-bottom:10px}
+.footer-brand{font-size:46px;font-style:italic;color:var(--ink)}
+.site-footer>.finale-names{display:block;margin:0 0 12px;font:500 28px/1.1 var(--hand);color:var(--accent)}
+.site-footer>span{font-size:11px;letter-spacing:.16em}
+.site-footer>p{display:block;font-size:13px}
+@media screen and (max-width:600px){
+  .mood-card{display:block}
+  .route-divider{height:44px}
+  .day-art{width:120px;height:120px;right:-14px;bottom:-14px}
+  .remember-section .practical-grid{gap:30px}
+  .footer-brand{font-size:40px}
+}
+
+/* ——— Modalità notte: segue l'impostazione scura del telefono ——— */
+@media (prefers-color-scheme:dark){
+  :root{color-scheme:dark;--paper:#121c18;--white:#1a2721;--ink:#ece6d6;--muted:#a9b2a4;--green:#9cc3a8;--line:#2e3d35;--accent:#e49a7c;
+    --rose:#33241f;--sage:#1f2d27;--lavender:#29253a;--sand:#2e281c;--blue:#1b2b2e;
+    --band-text:#c3c9bc;--band-accent:#eaa98d;--route:#7a5546;--note-paper:#18241f;--note-line:#26352d;--note-margin:#6e3f33;--notebook:#151f1b}
+  ::selection{background:#5b3a2e;color:var(--ink)}
+  body{background-image:none}
+  .button.primary:hover{background:#b7d6c1}
+  .day-tab:hover{background:var(--white);border-color:#4a5d51}
+  .day-tab[aria-pressed=true] .tab-top,.day-tab[aria-pressed=true] .tab-date{color:#1a2721}
+  .stop-check{border-color:#5f7166}
+  .stop-check::after{border-color:#121c18}
+  .stop-time.has-clock{background:#3a2a22;color:#f2c6ad;border-color:#5a4033}
+  .type-tag{background:#26352d;color:#bdd2b4}
+  .type-tag.uncertain{background:#3d2a23;color:#f2b99e}
+  .stop-list li{border-color:var(--line)}
+  .stop-links a{border-bottom-color:#4b5d52}
+  .timeline-item.is-done .stop-title{color:var(--muted);text-decoration-color:#6f8a76}
+  .progress-track{background:#2a3830}
+  .aside-highlights{border-top-color:#ffffff1f}
+  .date-label>span{border-left-color:var(--line)}
+  .practical-card{box-shadow:0 10px 24px #0006}
+  /* Cartolina e polaroid restano "carta fotografica" chiara: i loro testi tornano scuri. */
+  .postcard{background:#f4efe3;border-color:#d9d2c0}
+  .postcard-caption{color:#5d6358}
+  .polaroid{background:#f4efe3;border-color:#d9d2c0}
+  .polaroid figcaption span{color:#9a4f38}
+  .round-stamp{background:#f4efe3;color:#a4563e;box-shadow:inset 0 0 0 5px #f4efe3,inset 0 0 0 6px #b3937570}
+  .static-tips{background:var(--white)}
+  .countdown-units>span{box-shadow:none}
+  .install-card{box-shadow:0 14px 40px #0009}
+  .toast{color:#121c18}
+}
+
 /* Invito a installare l'app: riquadro in basso, sopra la barra del telefono. */
 @keyframes slide-up{from{opacity:0;transform:translateY(24px)}}
 .install-card{position:fixed;z-index:90;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));max-width:460px;margin-inline:auto;display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 12px;align-items:center;padding:14px 14px 10px;background:var(--white);border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 40px #26332d29}
@@ -318,6 +401,10 @@ h1 em{display:inline-block}
 <body>
   <a class="skip-link" href="#itinerario">Vai all’itinerario</a>
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-sunset" viewBox="0 0 24 24"><path d="M3 18h18M6 22h12M7.5 18a4.5 4.5 0 0 1 9 0M12 7v4M4.6 10.6l1.8 1.8M19.4 10.6l-1.8 1.8M9 4l3 3 3-3"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/><path d="M17 3v3m-1.5-1.5h3"/></symbol>
+    <symbol id="i-plane" viewBox="0 0 24 24"><path d="M21 4 3 11l6 2.5L11 20l3-4.5 4.5 3.5L21 4ZM9 13.5 21 4"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
     <symbol id="i-external" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
     <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
@@ -377,12 +464,17 @@ h1 em{display:inline-block}
       </div>
     </section>
 
+    <div class="route-divider wrap" aria-hidden="true">
+      <svg class="route-line" viewBox="0 0 600 60" preserveAspectRatio="none"><path d="M0 44 C 120 12, 230 62, 340 32 S 520 8, 600 30"/></svg>
+      <svg class="route-plane"><use href="#i-plane"/></svg>
+    </div>
+
     <section class="itinerary-section wrap" id="itinerario" aria-labelledby="itinerary-title">
       <div class="section-heading"><div><p class="eyebrow">UN GIORNO ALLA VOLTA</p><h2 id="itinerary-title">La nostra Parigi.</h2></div><button class="text-button" id="print-button"><svg class="icon"><use href="#i-print"/></svg>Stampa / PDF</button></div>
       <div class="day-nav" id="day-nav" role="group" aria-label="Scegli una giornata"></div>
       <div class="journey-layout">
         <article class="day-panel" id="day-panel" aria-labelledby="day-title">
-          <div class="day-heading"><p class="eyebrow" id="day-date"></p><h3 id="day-title" tabindex="-1"></h3><p id="day-intro"></p><div class="area-label"><svg class="icon"><use href="#i-pin"/></svg><span id="day-areas"></span></div></div>
+          <div class="day-heading"><svg class="day-art" id="day-art" aria-hidden="true"><use href="#i-eiffel"/></svg><p class="eyebrow" id="day-date"></p><h3 id="day-title" tabindex="-1"></h3><p id="day-intro"></p><div class="area-label"><svg class="icon"><use href="#i-pin"/></svg><span id="day-areas"></span></div></div>
           <div class="timeline-toolbar"><span id="day-counter"></span><label class="filter-label"><input type="checkbox" id="pending-filter"><span>Solo da fare</span></label></div>
           <div id="timeline"></div>
           <div class="day-pagination"><button class="text-button" id="prev-day"><svg class="icon reverse"><use href="#i-arrow"/></svg>Giorno precedente</button><button class="text-button" id="next-day">Giorno successivo<svg class="icon"><use href="#i-arrow"/></svg></button></div>
@@ -433,7 +525,13 @@ h1 em{display:inline-block}
     <section class="notes-section wrap" id="appunti" aria-labelledby="notes-title"><div class="notes-intro"><p class="eyebrow">LE COSE DA NON DIMENTICARE</p><h2 id="notes-title">Uno spazio per noi.</h2><p>Indirizzi, prenotazioni, un posto scoperto per caso. Il viaggio prende forma anche qui.</p><button class="text-button" id="export-button"><svg class="icon"><use href="#i-download"/></svg>Esporta spunte e appunti</button><button class="text-button" id="import-button"><svg class="icon"><use href="#i-book"/></svg>Importa un salvataggio</button><input type="file" id="import-file" accept=".json,application/json" hidden></div><div class="notes-field"><label for="trip-note">Il nostro taccuino</label><textarea id="trip-note" rows="8" maxlength="20000" placeholder="Hotel e indirizzo, orari dei voli, prenotazioni…"></textarea><p id="trip-note-status" role="status">Appunti salvati automaticamente su questo dispositivo.</p></div></section>
     <section id="print-itinerary" class="print-only" aria-label="Itinerario completo per la stampa"></section>
   </main>
-  <footer class="site-footer wrap"><a class="footer-brand" href="#inizio">Paris, avec toi.</a><span>5 — 9 NOVEMBRE 2026</span><p>Un piccolo viaggio. Un bel ricordo.</p></footer>
+  <footer class="site-footer wrap">
+    <svg class="finale-art" aria-hidden="true"><use href="#i-eiffel"/></svg>
+    <a class="footer-brand" href="#inizio">Paris, avec toi.</a>
+    <p class="finale-names">Carmelo &amp; Adiel</p>
+    <span>5 — 9 NOVEMBRE 2026</span>
+    <p>Un piccolo viaggio. Un bel ricordo.</p>
+  </footer>
   <aside class="install-card" id="install-card" aria-labelledby="install-title" hidden>
     <img src="icons/apple-touch-icon.png" width="44" height="44" alt="">
     <div class="install-text">
@@ -738,12 +836,19 @@ window.PARIS_TRIP = {
     return `<li class="timeline-item ${state.done[item.id] ? 'is-done' : ''}" data-stop="${item.id}"><input class="stop-check" type="checkbox" id="${item.id}" data-check="${item.id}" ${state.done[item.id] ? 'checked' : ''} aria-labelledby="title-${item.id}"><span class="stop-time ${/^\d{2}:\d{2}\??$/.test(item.time) ? 'has-clock' : ''}">${escapeHTML(item.time)}</span><div class="stop-content"><div class="stop-header"><span class="stop-title" id="title-${item.id}">${escapeHTML(item.title)}</span><span class="type-tag ${uncertain ? 'uncertain' : ''}">${escapeHTML(item.type)}</span></div><p class="stop-text">${escapeHTML(item.text)}</p>${item.list ? `<ul class="stop-list">${item.list.map(text => `<li>${escapeHTML(text)}</li>`).join('')}</ul>` : ''}${links.length ? `<div class="stop-links">${links.join('')}</div>` : ''}</div></li>`;
   }
 
+  // Icona del momento della giornata: sole al mattino, sole basso nel pomeriggio, luna la sera.
+  function momentIcon(label) {
+    if (/pomeriggio|verso sera/i.test(label)) return 'sunset';
+    if (/sera|notte/i.test(label)) return 'moon';
+    return 'sun';
+  }
+
   function renderTimeline() {
     const day = currentDay();
     const pendingOnly = $('pending-filter').checked;
     const groups = day.groups.map(group => ({...group, items: group.items.filter(item => !pendingOnly || !state.done[item.id])})).filter(group => group.items.length);
     const timeline = $('timeline');
-    timeline.innerHTML = groups.length ? groups.map((group, index) => `<section class="timeline-group" aria-labelledby="group-${index}"><div class="group-heading"><h4 id="group-${index}">${escapeHTML(group.label)}</h4><span>${escapeHTML(group.subtitle)}</span></div><ul class="timeline-items">${group.items.map(renderItem).join('')}</ul></section>`).join('') : `<div class="empty-state"><h4>Una giornata piena di ricordi.</h4><p>Hai spuntato tutte le tappe. Disattiva “Solo da fare” per rivederle.</p></div>`;
+    timeline.innerHTML = groups.length ? groups.map((group, index) => `<section class="timeline-group" aria-labelledby="group-${index}"><div class="group-heading">${icon(momentIcon(group.label), 'group-icon')}<h4 id="group-${index}">${escapeHTML(group.label)}</h4><span>${escapeHTML(group.subtitle)}</span></div><ul class="timeline-items">${group.items.map(renderItem).join('')}</ul></section>`).join('') : `<div class="empty-state"><h4>Una giornata piena di ricordi.</h4><p>Hai spuntato tutte le tappe. Disattiva “Solo da fare” per rivederle.</p></div>`;
     if (revealer) for (const item of timeline.querySelectorAll('.timeline-item')) revealer.observe(item);
     if (motionOK && timeline.animate) timeline.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
     updateProgress();
@@ -777,6 +882,7 @@ window.PARIS_TRIP = {
     $('day-intro').textContent = day.intro;
     $('day-areas').textContent = day.areas;
     $('mood-icon').innerHTML = `<use href="#i-${day.icon}"/>`;
+    $('day-art').innerHTML = `<use href="#i-${day.icon}"/>`;
     $('mood-title').textContent = day.mood;
     $('mood-quote').textContent = day.quote;
     document.querySelector('.mood-card').style.backgroundColor = `var(--${day.theme})`;

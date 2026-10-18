@@ -207,6 +207,44 @@ async (page) => {
     await ctx.close();
   }
 
+  // 8. Contrasto dei testi (WCAG AA) di giorno e di notte, a misura di telefono.
+  // Animazioni ridotte, così niente è a metà dissolvenza; le tappe già fatte sono sbiadite di proposito.
+  for (const scheme of ['light', 'dark']) {
+    const { ctx, p } = await open({ colorScheme: scheme, reducedMotion: 'reduce', isMobile: true, hasTouch: true });
+    await p.waitForTimeout(500);
+    const bad = await p.evaluate(() => {
+      const parse = c => { const m = c.match(/[\d.]+/g).map(Number); return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
+      const lum = ({ r, g, b }) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+      const over = (top, bottom) => ({ r: top.r * top.a + bottom.r * (1 - top.a), g: top.g * top.a + bottom.g * (1 - top.a), b: top.b * top.a + bottom.b * (1 - top.a), a: 1 });
+      // Sfondo effettivo: si compongono gli sfondi degli antenati, dal più esterno al più interno.
+      const backgroundOf = el => {
+        const layers = [];
+        for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+          const bg = parse(getComputedStyle(node).backgroundColor);
+          if (bg.a > 0) layers.push(bg);
+          if (bg.a === 1) break;
+        }
+        return layers.reverse().reduce((acc, layer) => over(layer, acc), { r: 255, g: 255, b: 255, a: 1 });
+      };
+      const out = [];
+      for (const el of document.querySelectorAll('body *')) {
+        const b = el.getBoundingClientRect(); const cs = getComputedStyle(el);
+        if (!b.width || !b.height || cs.visibility === 'hidden' || el.closest('[hidden], .is-done, .print-only, .skip-link, .static-itinerary, .round-stamp, .install-card')) continue;
+        if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim().length > 1)) continue;
+        const fg = over(parse(cs.color), backgroundOf(el));
+        const bg = backgroundOf(el);
+        const [l1, l2] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+        const ratio = (l1 + 0.05) / (l2 + 0.05);
+        const size = parseFloat(cs.fontSize); const bold = Number(cs.fontWeight) >= 700;
+        const need = size >= 24 || (bold && size >= 18.66) ? 3 : 4.5;
+        if (ratio < need) out.push(`${(typeof el.className === 'string' && el.className.split(' ')[0]) || el.tagName} "${el.textContent.trim().slice(0, 18)}" ${ratio.toFixed(2)}`);
+      }
+      return [...new Set(out)];
+    });
+    check(`contrasto ${scheme === 'light' ? 'giorno' : 'notte'}: testi leggibili (AA)`, bad.length === 0, bad.slice(0, 12).join(' · ') + (bad.length > 12 ? ` … +${bad.length - 12}` : ''));
+    await ctx.close();
+  }
+
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));
   const failed = results.filter(r => r.startsWith('FAIL')).length;
   return `${results.join('\n')}\n\n${results.length - failed}/${results.length} controlli superati`;
