@@ -220,7 +220,7 @@ h1 em{display:inline-block}
 .polaroid{position:absolute;z-index:2;top:-18px;right:-12px;width:44%;margin:0;padding:8px 8px 0;background:#fffefa;border:1px solid #ece7da;box-shadow:0 16px 38px #3b36201c,0 2px 6px #3b362012;transform:rotate(6deg)}
 .polaroid img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover}
 .polaroid figcaption{font:500 clamp(18px,1.9vw,24px)/1.05 var(--hand);color:#4a4438;text-align:center;padding:9px 2px 11px;white-space:nowrap}
-.polaroid figcaption span{display:block;margin-top:2px;font-size:.72em;color:var(--accent)}
+.polaroid figcaption span{display:block;margin-top:2px;font-size:max(11px,.72em);color:var(--accent)}
 .tape{position:absolute;z-index:1;top:-11px;left:50%;width:48%;height:22px;transform:translateX(-50%) rotate(-5deg);background:repeating-linear-gradient(135deg,#e2bfa4d9 0 7px,#ecd2bed9 7px 14px);box-shadow:0 1px 2px #3b362014}
 
 /* Timer verso la partenza. */
@@ -282,8 +282,13 @@ h1 em{display:inline-block}
   .day-heading h3{font-size:clamp(31px,8.6vw,38px)}
   .day-panel .day-heading{padding:20px 18px 0;margin-inline:-4px}
   .polaroid{top:-16px;right:0;width:40%;padding:6px 6px 0}
-  .polaroid figcaption{font-size:17px;padding:7px 2px 9px}
+  .polaroid figcaption{font-size:clamp(14px,4.3vw,17px);padding:7px 2px 9px;white-space:normal}
   .tape{height:18px;top:-9px}
+  /* La cartolina ora è una foto: sul telefono il taglio orizzontale tiene i visi, che stanno in alto. */
+  .postcard img{object-position:50% 55%}
+  /* Timbro più piccolo e più in basso, sul bordo bianco: non copre i visi. */
+  .round-stamp{width:62px;height:62px;left:-8px;bottom:-24px;gap:3px}
+  .round-stamp span{font-size:6px}.round-stamp .icon{width:14px;height:14px}
   .countdown{margin-bottom:24px}
   .countdown-label{font-size:11px}
   .countdown-units{gap:8px}
@@ -346,13 +351,13 @@ h1 em{display:inline-block}
       </div>
       <div class="hero-art">
         <div class="postcard">
-          <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MjAiIGhlaWdodD0iNDcwIiB2aWV3Qm94PSIwIDAgNTIwIDQ3MCIgZmlsbD0ibm9uZSI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InNreSIgeDE9IjI2MCIgeTE9IjAiIHgyPSIyNjAiIHkyPSI0NzAiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBzdG9wLWNvbG9yPSIjZWVlNWQ2Ii8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjZjRlZWUzIi8+PC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ic3VuIiB4MT0iMzkwIiB5MT0iNDUiIHgyPSIyNzAiIHkyPSIyNTAiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBzdG9wLWNvbG9yPSIjZDc5Nzc1Ii8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjZTdiOTlhIi8+PC9saW5lYXJHcmFkaWVudD4KICAgIDxwYXR0ZXJuIGlkPSJ3aW5kb3dzIiB3aWR0aD0iMjIiIGhlaWdodD0iMjYiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik03IDhoNnYxMUg3WiIgZmlsbD0iIzc4ODI3NCIgb3BhY2l0eT0iLjUiLz48L3BhdHRlcm4+CiAgICA8Y2xpcFBhdGggaWQ9InJvdW5kIj48cmVjdCB3aWR0aD0iNTIwIiBoZWlnaHQ9IjQ3MCIgcng9IjgiLz48L2NsaXBQYXRoPgogIDwvZGVmcz4KICA8ZyBjbGlwLXBhdGg9InVybCgjcm91bmQpIj4KICAgIDxwYXRoIGZpbGw9InVybCgjc2t5KSIgZD0iTTAgMGg1MjB2NDcwSDB6Ii8+CiAgICA8Y2lyY2xlIGN4PSIzNTEiIGN5PSIxNDMiIHI9IjgzIiBmaWxsPSJ1cmwoI3N1bikiIG9wYWNpdHk9Ii44MiIvPgogICAgPHBhdGggZD0iTTQ0IDEwMWMxMC05IDE2LTkgMjYgMCAxMC05IDE3LTkgMjYgMG0zMjQgODhjNy02IDEyLTYgMTggMCA2LTYgMTEtNiAxOCAwIiBzdHJva2U9IiM3MjdjNmMiIHN0cm9rZS13aWR0aD0iMS44IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDxwYXRoIGQ9Ik0tMjAgMzEyaDYydi02MGg2M3YtMTloNTJ2NzRoNDJ2LTQ3aDQ0djQ3aDUydi02N2g1NXY0OGg0MHYtMzdoNTd2NjVoNDJ2LTcwaDY2djc2aDMydjE0OEgtMjBaIiBmaWxsPSIjZDNkNWM2Ii8+CiAgICA8cGF0aCBkPSJNLTEyIDI5OWg2OGwtNi0xOEg1Wm01OS01N2g3MmwtMTUtMThINjNabTcwLTE0aDQ0bC03LTEzaC0zMFptMTg2IDRoNTdsLTYtMTNoLTQwWm0xMzIgN2g3MmwtMTQtMThoLTQ0WiIgZmlsbD0iI2ExYTk5NiIvPgogICAgPGcgc3Ryb2tlPSIjM2Q1NTQ3IiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+CiAgICAgIDxwYXRoIGQ9Ik0yNDkgNjloMTBsNCA2NiA5IDYyIDE4IDcyIDM1IDgyaC0zNmwtMTctNDFjLTctMjAtMzEtMjAtMzggMGwtMTcgNDFoLTM2bDM1LTgyIDE4LTcyIDktNjJaIiBmaWxsPSIjNmQ3ZDY0Ii8+CiAgICAgIDxwYXRoIGQ9Ik0yNTQgNDR2MjVtLTkgNWgxOG0tMjIgNjFoMjZtLTM3IDYzaDQ4bS02MyA3MWg3OW0tOTIgNDJoMTA3Ii8+CiAgICAgIDxwYXRoIGQ9Im0yNTEgODMgNyAzMi0xMiAyMyAxOSAyNC0yNiAzNCAzNiAzNS01MiAzNyA3NiA0MW0tNDItMjI2LTcgMzIgMTIgMjMtMTkgMjQgMjYgMzQtMzYgMzUgNTIgMzctNzYgNDEiIHN0cm9rZT0iI2Q5ZGJjOCIgc3Ryb2tlLXdpZHRoPSIxLjIiLz4KICAgICAgPHBhdGggZD0iTTIzNyAxOTloMzRtLTQ3IDY5aDYyTTE5NSAzNDBoMjhtNjQgMGgyOCIgc3Ryb2tlPSIjZWNlN2Q4IiBzdHJva2Utd2lkdGg9IjIiLz4KICAgICAgPHBhdGggZD0iTTIyNyAzMDZjMTAtMjUgNDMtMjUgNTQgMCIgc3Ryb2tlPSIjZWNlN2Q4IiBzdHJva2Utd2lkdGg9IjIiLz4KICAgICAgPHBhdGggZD0iTTI0OSA2OWgxMHY4aC0xMFoiIGZpbGw9IiMzMzRmNDAiLz4KICAgIDwvZz4KICAgIDxwYXRoIGQ9Ik0wIDMyOWg4OXYtNTNIOVptMzUyLTFoNzF2LTU4aC03MVptODctM2g4MXYtNzBoLTgxWiIgZmlsbD0iI2IxYjdhNCIvPgogICAgPHBhdGggZD0iTTAgMzI5aDg5di01M0g5Wm0zNTItMWg3MXYtNThoLTcxWm04Ny0zaDgxdi03MGgtODFaIiBmaWxsPSJ1cmwoI3dpbmRvd3MpIi8+CiAgICA8cGF0aCBkPSJNLTQgMjc4aDEwMGwtMTAtMThIMTBabTM0Ny04aDg1bC0xMi0xOGgtNTZabTgzLTE1aDEwNGwtMTUtMTloLTczWiIgZmlsbD0iIzZjN2Q2OSIvPgogICAgPHBhdGggZD0iTTAgMzQ5YzE2MC0xMSAzNDYtMTcgNTIwLTR2MTI1SDBaIiBmaWxsPSIjZTJkN2JmIi8+CiAgICA8cGF0aCBkPSJNMCAzNzZjMTQ4LTI1IDM0OC0xNyA1MjAgOHY4NkgwWiIgZmlsbD0iI2E5YjZhYyIvPgogICAgPHBhdGggZD0iTTAgMzg1YzE0Mi0yNCAzMzQtMTkgNTIwIDZtLTUxNiAzMGMxMTAtMTYgMjkzLTE0IDQyNSA1TTkzIDQ0OWMxNTAtMTAgMjg0LTQgNDI3IDgiIHN0cm9rZT0iI2U1ZTlkZCIgc3Ryb2tlLXdpZHRoPSIxLjYiLz4KICAgIDxwYXRoIGQ9Ik0tMTAgMzY5YzE2Mi0xOSAzNDAtMjEgNTQwLTNsLTEgMTVjLTIwMS0xOS0zODAtMTYtNTM5IDRaIiBmaWxsPSIjOGE5MjdiIi8+CiAgICA8cGF0aCBkPSJNLTEwIDM2OGMxNjItMTkgMzQwLTIxIDU0MC0zIiBzdHJva2U9IiMzZDU1NDciIHN0cm9rZS13aWR0aD0iMiIvPgogICAgPHBhdGggZD0iTTcxIDM2NXYtMTRtNDYgOXYtMTNtNDYgMTF2LTE0bTQ2IDEydi0xNG00NiAxM3YtMTRtNDYgMTN2LTE0bTQ2IDE0di0xM200NiAxNnYtMTVtNDYgMTh2LTE0bTQ2IDE3di0xMyIgc3Ryb2tlPSIjNjM3MTVjIiBzdHJva2Utd2lkdGg9IjIiLz4KICAgIDxwYXRoIGQ9Ik0wIDM1N2MxNjYtMjAgMzUwLTIxIDUyMC0zIiBzdHJva2U9IiM2MzcxNWMiIHN0cm9rZS13aWR0aD0iMS41Ii8+CiAgICA8ZyBmaWxsPSIjNDE1ZDQ4Ij4KICAgICAgPHBhdGggZD0iTTAgMjYzYzMyLTIxIDQ3IDQgMjkgMjUgMzgtMTIgNTEgMjQgMjkgNDEgMzQgNSAzMyA0NC0yIDQ2SDBaIi8+CiAgICAgIDxwYXRoIGQ9Ik01MjAgMjk0Yy0yOC0yMS00NyAwLTMxIDIzLTMwLTYtNDMgMTctMjYgMzUtMjYgOC0yMCAzNCA1IDM0aDUyWiIvPgogICAgPC9nPgogICAgPHBhdGggZD0iTTkgMjc5YzQgNDQgOCA3MiAxNyA5NW00OTEtNjljLTYgMzItMTQgNTMtMjUgNzkiIHN0cm9rZT0iI2I0YmZhNiIgc3Ryb2tlLXdpZHRoPSIxLjEiLz4KICAgIDxnIGZpbGw9IiNlOWVlZTIiPjxwYXRoIGQ9Im0zNDQgNDExIDM4IDItMyA1LTI4LTFaIi8+PHBhdGggZD0iTTM1OSA0MDFoMTJ2MTFoLTEyWiIvPjwvZz4KICAgIDx0ZXh0IHg9IjI4IiB5PSIzOSIgZmlsbD0iIzQ4NjA0ZSIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGxldHRlci1zcGFjaW5nPSIzIj5QQVJJUzwvdGV4dD4KICAgIDx0ZXh0IHg9IjQ5MiIgeT0iMzkiIHRleHQtYW5jaG9yPSJlbmQiIGZpbGw9IiM2MjczNWQiIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjkiIGxldHRlci1zcGFjaW5nPSIyIj5GUkFOQ0U8L3RleHQ+CiAgICA8cGF0aCBkPSJNMjggNTFoMzhtMzkyIDBoMzQiIHN0cm9rZT0iIzgxOTA3OSIgc3Ryb2tlLXdpZHRoPSIuOCIvPgogIDwvZz4KPC9zdmc+Cg==" alt="Illustrazione della Torre Eiffel tra i tetti di Parigi, con la Senna e un sole color pesca" width="520" height="470">
+          <img src="img/cartolina.jpg" alt="Carmelo e Adiel abbracciati in un selfie" width="793" height="717" decoding="async">
           <div class="postcard-caption"><span>48°51′ N · 2°21′ E</span><span>une escapade à Paris</span></div>
         </div>
         <figure class="polaroid">
           <span class="tape" aria-hidden="true"></span>
-          <img src="img/noi.jpg" width="560" height="560" alt="Salvo e Adiel abbracciati in un selfie" decoding="async">
-          <figcaption>Salvo &amp; Adiel<span>Paris · 2026</span></figcaption>
+          <img src="img/noi.jpg" width="600" height="600" alt="Carmelo e Adiel, uno di fronte all'altra, si guardano sorridendo" decoding="async">
+          <figcaption>Carmelo &amp; Adiel<span>Paris · 2026</span></figcaption>
         </figure>
         <div class="round-stamp" aria-hidden="true"><span>JUSTE</span><svg class="icon"><use href="#i-heart"/></svg><span>NOUS DEUX</span></div>
       </div>

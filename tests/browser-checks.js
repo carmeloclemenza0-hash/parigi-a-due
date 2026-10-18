@@ -84,6 +84,7 @@ async (page) => {
         polaroidOverTitle: pol.left < title.right && pol.top < title.bottom && pol.bottom > title.top,
         countdownFits: units.right <= document.documentElement.clientWidth,
         fontLoaded: document.fonts.check('500 40px "Cormorant Garamond"'),
+        captionFits: (c => c.scrollWidth <= c.clientWidth + 1)(document.querySelector('.polaroid figcaption')),
         tabsCut: [...document.querySelectorAll('#day-nav .day-tab')].some(t => t.scrollWidth > t.clientWidth + 1)
       };
     });
@@ -95,6 +96,7 @@ async (page) => {
     check(`layout ${width}px: timer dentro lo schermo`, r.countdownFits);
     check(`layout ${width}px: giorni non tagliati`, !r.tabsCut);
     check(`layout ${width}px: Cormorant caricato`, r.fontLoaded);
+    check(`layout ${width}px: didascalia polaroid dentro il bordo`, r.captionFits);
     await p.screenshot({ path: `C:/Users/Carme/Desktop/AIWORKSPACE/Vario/.playwright-mcp/shot-${width}.png` });
     await ctx.close();
   }
@@ -135,8 +137,8 @@ async (page) => {
     p.on('pageerror', e => errors.push(e.message));
     await p.goto(BASE);
     await p.evaluate(() => navigator.serviceWorker.ready);
-    const cache = await p.evaluate(async () => ({ keys: await caches.keys(), files: (await (await caches.open('parigi-v2')).keys()).length }));
-    check('cache: solo parigi-v2 con 11 file', cache.keys.join() === 'parigi-v2' && cache.files === 11, JSON.stringify(cache));
+    const cache = await p.evaluate(async () => ({ keys: await caches.keys(), files: (await (await caches.open('parigi-v3')).keys()).length }));
+    check('cache: solo parigi-v3 con 12 file', cache.keys.join() === 'parigi-v3' && cache.files === 12, JSON.stringify(cache));
     // Il server locale non comprime: qui si sommano le risorse (foto, font, icone, già compresse di loro);
     // il peso di index.html compresso (come lo serve GitHub Pages) si misura a parte, con gzip.
     const weight = await p.evaluate(() => {
@@ -148,7 +150,8 @@ async (page) => {
     await p.locator('#d1-volo').tap();
     await ctx.setOffline(true);
     await p.reload();
-    const offline = { stops: await p.locator('#timeline .timeline-item').count(), checked: await p.locator('#d1-volo').isChecked(), photo: await p.locator('.polaroid img').evaluate(i => i.complete && i.naturalWidth > 0) };
+    const loaded = sel => p.locator(sel).evaluate(i => i.complete && i.naturalWidth > 0);
+    const offline = { stops: await p.locator('#timeline .timeline-item').count(), checked: await p.locator('#d1-volo').isChecked(), photo: await loaded('.polaroid img') && await loaded('.postcard img') };
     check('offline: sito, spunta e foto disponibili', offline.stops > 0 && offline.checked && offline.photo, JSON.stringify(offline));
     await ctx.close();
   }
