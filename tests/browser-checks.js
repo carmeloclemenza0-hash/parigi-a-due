@@ -22,9 +22,10 @@ async (page) => {
       async signIn(email, password) { needNetwork(); const p = people[email]; if (!p || password !== 'password-giusta') throw new Error('Email o password non corrette.'); user = p; return p; },
       async signOut() { user = null; },
       async changePassword(password) { needNetwork(); fake.newPassword = password; },
-      async list() { needNetwork(); if (failList) throw new Error('Servizio non raggiungibile.'); return fake.memories.map(m => ({ ...m })); },
+      async list() { needNetwork(); if (failList) throw new Error('Servizio non raggiungibile.'); return fake.memories.map(m => ({ ...m })).sort((a, b) => a.createdAt.localeCompare(b.createdAt)); },
       async add({ stopId, note, photos }) {
         needNetwork();
+        if (!user) throw new Error('Non autenticato.');
         const paths = [];
         for (const blob of photos) {
           const bitmap = await createImageBitmap(blob);
@@ -35,7 +36,7 @@ async (page) => {
         fake.memories.push(memory);
         return { ...memory };
       },
-      async updateNote(id, note) { needNetwork(); const m = fake.memories.find(x => x.id === id); m.note = note; return { ...m }; },
+      async updateNote(id, note) { needNetwork(); if (!user) throw new Error('Non autenticato.'); const m = fake.memories.find(x => x.id === id); if (!m) throw new Error('Ricordo non trovato.'); m.note = note; return { ...m }; },
       async remove(memory) { needNetwork(); fake.memories = fake.memories.filter(m => m.id !== memory.id); },
       async photoUrls(paths) { return Object.fromEntries(paths.map(path => [path, pixel])); }
     };
@@ -184,6 +185,7 @@ async (page) => {
     // App già aperta dalla schermata Home: nessun invito.
     {
       const c = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: IPHONE_UA, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+      await c.addInitScript(fakeMemoriesApi, {});
       await c.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
       const pg = await c.newPage();
       await pg.goto(BASE);
@@ -218,6 +220,7 @@ async (page) => {
   // 7. Offline con service worker, spunte ricordate, peso totale
   {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await ctx.addInitScript(fakeMemoriesApi, {});
     const p = await ctx.newPage();
     p.on('pageerror', e => errors.push(e.message));
     await p.goto(BASE);
@@ -329,6 +332,33 @@ async (page) => {
     check('ricordi: foto piccola non ingrandita', r.small.width === 800 && r.small.height === 600);
     check('ricordi: conteggio per tappa', r.counts['d1-eiffel'] === 2, JSON.stringify(r.counts));
     check('ricordi: diario per giorno, in ordine di tempo', JSON.stringify(r.days) === JSON.stringify([[1, 'ba'], [3, 'c']]), JSON.stringify(r.days));
+    await ctx.close();
+  }
+
+  // 11. Ricordi: accesso
+  {
+    const { ctx, p } = await open();
+    await p.click('#account-button');
+    check('accesso: senza login si apre il riquadro Accedi', await p.locator('#login-dialog').evaluate(d => d.open));
+    await p.fill('#login-email', 'carmeloclemenza0@gmail.com');
+    await p.fill('#login-password', 'sbagliata');
+    await p.click('#login-submit');
+    await p.waitForTimeout(200);
+    check('accesso: password sbagliata → messaggio chiaro', (await p.locator('#login-error').textContent()) === 'Email o password non corrette.' && await p.locator('#login-error').isVisible());
+    await p.fill('#login-password', 'password-giusta');
+    await p.click('#login-submit');
+    await p.waitForTimeout(200);
+    check('accesso: login riuscito chiude il riquadro', !(await p.locator('#login-dialog').evaluate(d => d.open)));
+    check('accesso: pulsante header con il nome', (await p.locator('#account-button').getAttribute('aria-label')) === 'Ciao Carmelo: account e uscita');
+    await p.click('#account-button');
+    check('accesso: riquadro account saluta Carmelo', (await p.locator('#account-title').textContent()) === 'Ciao Carmelo.');
+    await p.fill('#new-password', 'nuovapassword1');
+    await p.click('#password-submit');
+    await p.waitForTimeout(200);
+    check('accesso: cambio password', (await p.evaluate(() => window.__fake.newPassword)) === 'nuovapassword1' && (await p.locator('#password-status').textContent()) === 'Password cambiata.');
+    await p.click('#logout-button');
+    await p.waitForTimeout(200);
+    check('accesso: uscita', (await p.locator('#account-button').getAttribute('aria-label')) === 'Accedi ai ricordi');
     await ctx.close();
   }
 

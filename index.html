@@ -398,7 +398,7 @@ html[data-theme=dark] .toast{color:#121c18}
 html[data-theme=dark] .theme-toggle{border-color:#3e5046;color:#f2cf8a}
 .theme-toggle:hover{background:var(--sage)}
 .site-header nav .theme-toggle .icon{display:block;width:19px;height:19px;margin:0;stroke-width:1.8}
-@media screen and (max-width:360px){.brand small{white-space:nowrap}.site-header nav{gap:9px}.theme-toggle{width:34px;height:34px}}
+@media screen and (max-width:360px){.brand small{white-space:nowrap}.site-header nav{gap:7px}.theme-toggle{width:34px;height:34px}}
 @media screen and (max-width:340px){.brand small{display:none}}
 .site-header nav{align-items:center}
 @media (prefers-reduced-motion:no-preference){.theme-toggle:active{transform:rotate(-25deg) scale(.92)}}
@@ -422,6 +422,19 @@ html[data-theme=dark] .theme-toggle{border-color:#3e5046;color:#f2cf8a}
 .install-actions .text-button{font-size:13px;color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.install-card{animation:slide-up .45s ease both}}
 @media print{.install-card{display:none!important}}
+/* Ricordi: accesso */
+.site-header nav .account-toggle .icon{display:block;width:18px;height:18px;margin:0;stroke-width:1.8}
+html[data-theme=dark] .account-toggle.is-signed-in{color:#f2cf8a}
+.account-toggle.is-signed-in{color:var(--accent)}
+/* L'ultimo pulsante non deve sporgere oltre il bordo dell'header (il margine negativo di .theme-toggle serve solo al primo). */
+.theme-toggle.account-toggle{margin-right:0}
+.field{display:block;font-size:12px;font-weight:600;margin-top:14px}
+.field input{display:block;width:100%;margin-top:6px;padding:11px 12px;border:1px solid var(--line);border-radius:6px;background:var(--white);color:var(--ink);font-size:16px}
+.form-error{color:var(--accent);font-size:13px;margin:12px 0 0}
+.form-status{font-size:13px;color:var(--muted);margin:12px 0 0;min-height:1em}
+.dialog-close-link{margin-top:14px;font-size:12px}
+/* Con due pulsanti tondi nell'header, a 320px servono più stretti (la regola a 600px più su li farebbe 38px). */
+@media screen and (max-width:360px){.theme-toggle{width:34px;height:34px}.header-inner{gap:6px}.site-header nav{gap:4px}}
 </style>
 </head>
 <body>
@@ -452,7 +465,7 @@ html[data-theme=dark] .theme-toggle{border-color:#3e5046;color:#f2cf8a}
   <header class="site-header">
     <div class="header-inner wrap">
       <a class="brand" href="#inizio" aria-label="Parigi a due, inizio"><span class="brand-seal">P<span>.</span></span><span>Carnet de voyage<small>PARIGI · NOVEMBRE 2026</small></span></a>
-      <nav aria-label="Navigazione principale"><button class="theme-toggle needs-js" id="theme-toggle" type="button" aria-label="Passa al tema scuro"><svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg></button><a href="#itinerario">Itinerario</a><a class="needs-js" href="#da-ricordare">Da ricordare</a><a class="needs-js" href="#appunti">Appunti <svg class="icon"><use href="#i-book"/></svg></a></nav>
+      <nav aria-label="Navigazione principale"><button class="theme-toggle needs-js" id="theme-toggle" type="button" aria-label="Passa al tema scuro"><svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg></button><a href="#itinerario">Itinerario</a><a class="needs-js" href="#da-ricordare">Da ricordare</a><a class="needs-js" href="#appunti">Appunti <svg class="icon"><use href="#i-book"/></svg></a><button class="theme-toggle account-toggle needs-js" id="account-button" type="button" aria-label="Accedi ai ricordi"><svg class="icon" aria-hidden="true"><use href="#i-heart"/></svg></button></nav>
     </div>
   </header>
 
@@ -572,6 +585,8 @@ html[data-theme=dark] .theme-toggle{border-color:#3e5046;color:#f2cf8a}
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="import-dialog"><form method="dialog"><h2>Riprendiamo da qui?</h2><p>Importando il salvataggio, le spunte e gli appunti su questo dispositivo saranno sostituiti. Puoi esportarli prima di continuare.</p><div class="dialog-actions"><button value="cancel" class="button secondary">Annulla</button><button value="confirm" class="button primary">Importa</button></div></form></dialog>
+  <dialog id="login-dialog" aria-labelledby="login-title"><form id="login-form"><h2 id="login-title">Entriamo.</h2><p>I ricordi sono solo per noi due: si accede una volta su questo telefono.</p><label class="field">Email<input id="login-email" type="email" autocomplete="username" required></label><label class="field">Password<input id="login-password" type="password" autocomplete="current-password" required></label><p class="form-error" id="login-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" class="button secondary" data-close>Annulla</button><button class="button primary" id="login-submit">Accedi</button></div></form></dialog>
+  <dialog id="account-dialog" aria-labelledby="account-title"><form id="password-form"><h2 id="account-title">Ciao.</h2><p>Sei collegato su questo dispositivo.</p><label class="field">Nuova password<input id="new-password" type="password" autocomplete="new-password" minlength="8" required></label><p class="form-status" id="password-status" role="status"></p><div class="dialog-actions"><button type="button" class="button secondary" id="logout-button">Esci</button><button class="button primary" id="password-submit">Cambia password</button></div><button type="button" class="text-button dialog-close-link" data-close>Chiudi</button></form></dialog>
 <script>
 /* Itinerario trascritto dalle due foto e aggiornato con le modifiche richieste.
  * I tempi senza prenotazione sono indicativi. Nessun dato è inviato online. */
