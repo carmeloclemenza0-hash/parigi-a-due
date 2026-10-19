@@ -10,22 +10,24 @@ async (page) => {
   const check = (name, pass, detail = '') => results.push(`${pass ? 'OK  ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`);
 
   // Versione finta di Supabase per i test: stessa forma di memories-api.js, dati in memoria.
-  // Password valida per entrambi: "password-giusta". Opzioni: signedIn ('Carmelo'|'Adiel'), seed, failList.
-  const fakeMemoriesApi = ({ signedIn = null, seed = [], failList = false } = {}) => {
-    const people = { 'carmeloclemenza0@gmail.com': { id: 'u-carmelo', name: 'Carmelo' }, 'adiel.alba6@gmail.com': { id: 'u-adiel', name: 'Adiel' } };
-    const fake = window.__fake = { memories: seed.map(m => ({ ...m })), uploads: [], newPassword: null };
+  // Password valida per entrambi: "password-giusta". Opzioni: signedIn ('Carmelo'|'Adiel'), seed, failList,
+  // failSession / failAdd / failSignOut (lanciano 'Failed to fetch' come la rete vera; window.__fake.failSession si può spegnere).
+  const fakeMemoriesApi = ({ signedIn = null, seed = [], failList = false, failSession = false, failAdd = false, failSignOut = false } = {}) => {
+    const people = { 'carmelo@example.test': { id: 'u-carmelo', name: 'Carmelo' }, 'adiel@example.test': { id: 'u-adiel', name: 'Adiel' } };
+    const fake = window.__fake = { memories: seed.map(m => ({ ...m })), uploads: [], newPassword: null, failSession };
     let user = signedIn ? Object.values(people).find(p => p.name === signedIn) : null;
     const needNetwork = () => { if (!navigator.onLine) throw new Error('Failed to fetch'); };
     const pixel = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
     window.PARIS_MEMORIES_API = {
-      async currentUser() { return user; },
+      async currentUser() { if (fake.failSession) throw new Error('Failed to fetch'); return user; },
       async signIn(email, password) { needNetwork(); const p = people[email]; if (!p || password !== 'password-giusta') throw new Error('Email o password non corrette.'); user = p; return p; },
-      async signOut() { user = null; },
+      async signOut() { user = null; if (failSignOut) throw new Error('Failed to fetch'); },
       async changePassword(password) { needNetwork(); fake.newPassword = password; },
       async list() { needNetwork(); if (failList) throw new Error('Servizio non raggiungibile.'); return fake.memories.map(m => ({ ...m })).sort((a, b) => a.createdAt.localeCompare(b.createdAt)); },
       async add({ stopId, note, photos }) {
         needNetwork();
         if (!user) throw new Error('Non autenticato.');
+        if (failAdd) throw new Error('Failed to fetch');
         const paths = [];
         for (const blob of photos) {
           const bitmap = await createImageBitmap(blob);
@@ -225,8 +227,8 @@ async (page) => {
     p.on('pageerror', e => errors.push(e.message));
     await p.goto(BASE);
     await p.evaluate(() => navigator.serviceWorker.ready);
-    const cache = await p.evaluate(async () => ({ keys: await caches.keys(), files: (await (await caches.open('parigi-v4')).keys()).length }));
-    check('cache: solo parigi-v4 con 15 file', cache.keys.join() === 'parigi-v4' && cache.files === 15, JSON.stringify(cache));
+    const cache = await p.evaluate(async () => ({ keys: await caches.keys(), files: (await (await caches.open('parigi-v5')).keys()).length }));
+    check('cache: solo parigi-v5 con 15 file', cache.keys.join() === 'parigi-v5' && cache.files === 15, JSON.stringify(cache));
     // Il server locale non comprime: qui si sommano le risorse (foto, font, icone, già compresse di loro);
     // il peso di index.html compresso (come lo serve GitHub Pages) si misura a parte, con gzip.
     const weight = await p.evaluate(() => {
@@ -343,7 +345,7 @@ async (page) => {
     const { ctx, p } = await open();
     await p.click('#account-button');
     check('accesso: senza login si apre il riquadro Accedi', await p.locator('#login-dialog').evaluate(d => d.open));
-    await p.fill('#login-email', 'carmeloclemenza0@gmail.com');
+    await p.fill('#login-email', 'carmelo@example.test');
     await p.fill('#login-password', 'sbagliata');
     await p.click('#login-submit');
     await p.waitForTimeout(200);
@@ -362,6 +364,7 @@ async (page) => {
     await p.click('#logout-button');
     await p.waitForTimeout(200);
     check('accesso: uscita', (await p.locator('#account-button').getAttribute('aria-label')) === 'Accedi ai ricordi');
+    check('accesso: uscita chiude il riquadro e svuota la copia sul telefono', !(await p.locator('#account-dialog').evaluate(d => d.open)) && (await p.evaluate(() => localStorage.getItem('parigi-a-due-2026-v1-memories'))) === null);
     await ctx.close();
   }
 
@@ -463,9 +466,103 @@ async (page) => {
     await p.waitForTimeout(300);
     const diary = await p.locator('#diary').textContent();
     check(`diario: ricordi raggruppati per giorno (${scheme})`, diary.includes('Giorno 1') && diary.includes('Torre Eiffel') && diary.includes('Che freddo'));
+    check(`diario: niente pulsanti Modifica/Cancella (${scheme})`, await p.locator('#diary [data-delete], #diary [data-edit]').count() === 0);
     check(`contrasto ${scheme === 'light' ? 'giorno' : 'notte'}: diario e pulsanti`, (await contrastIssues(p)).length === 0, (await contrastIssues(p)).slice(0, 8).join(' · '));
     await p.click('[data-memories="d1-eiffel"]');
-    check(`contrasto ${scheme === 'light' ? 'giorno' : 'notte'}: pannello dei ricordi`, (await contrastIssues(p, '#memory-sheet')).length === 0, (await contrastIssues(p, '#memory-sheet')).slice(0, 8).join(' · '));
+    // Guardia: il controllo vale solo se nel pannello ci sono davvero dei post-it.
+    const cards = await p.locator('#memory-sheet .memory-card').count();
+    const sheetIssues = await contrastIssues(p, '#memory-sheet');
+    check(`contrasto ${scheme === 'light' ? 'giorno' : 'notte'}: pannello dei ricordi`, cards > 0 && sheetIssues.length === 0, `${cards} post-it · ${sheetIssues.slice(0, 8).join(' · ')}`);
+    await ctx.close();
+  }
+
+  // 14. Ricordi: rete instabile, sessione e modifiche in corso
+  const shown = p => p.evaluate(() => `${document.getElementById('toast').textContent} | ${document.getElementById('memory-status').textContent} | ${document.getElementById('password-status').textContent}`);
+  {
+    // Sessione non verificabile (token scaduto in metro): la copia sul telefono resta e si vede, in sola lettura.
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Carmelo', seed, failSession: true } });
+    await p.evaluate(s => localStorage.setItem('parigi-a-due-2026-v1-memories', JSON.stringify(s)), seed);
+    await p.reload();
+    await p.waitForTimeout(300);
+    check('sessione non verificata: si vedono i ricordi salvati', (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Ricordi · 2');
+    check('sessione non verificata: la copia sul telefono resta', (await p.evaluate(() => JSON.parse(localStorage.getItem('parigi-a-due-2026-v1-memories') || '[]').length)) === 2);
+    const text = await shown(p);
+    check('sessione non verificata: messaggio in italiano, senza "fetch"', !/fetch/i.test(text) && (await p.locator('#toast').textContent()).includes('sola lettura'), text);
+    await p.click('[data-memories="d1-eiffel"]');
+    check('sessione non verificata: pannello in sola lettura', await p.locator('#memory-list .memory-card').count() === 2 && await p.locator('#memory-form').isHidden() && await p.locator('#memory-list [data-delete]').count() === 0);
+    await p.evaluate(() => document.querySelectorAll('dialog[open]').forEach(d => d.close()));
+    // Torna la rete: si riprova la sessione e poi si aggiorna.
+    await p.evaluate(() => { window.__fake.failSession = false; window.dispatchEvent(new Event('online')); });
+    await p.waitForTimeout(300);
+    check('sessione: al ritorno della rete si riprova e si aggiorna', (await p.locator('#account-button').getAttribute('aria-label')) === 'Ciao Carmelo: account e uscita' && (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Ricordi · 2');
+    await ctx.close();
+  }
+  {
+    // Errori di rete: messaggi in italiano, mai "Failed to fetch".
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Adiel', seed } });
+    await p.waitForTimeout(200);
+    await ctx.setOffline(true);
+    await p.click('#account-button');
+    await p.fill('#new-password', 'nuovapassword1');
+    await p.click('#password-submit');
+    await p.waitForTimeout(200);
+    let text = await shown(p);
+    check('rete assente: cambio password con messaggio italiano', !/fetch/i.test(text) && text.includes('Rete assente'), text);
+    await p.click('#account-dialog [data-close]');
+    await p.click('[data-memories="d1-eiffel"]');
+    await p.click('#memory-list [data-memory="m-a"] [data-edit]');
+    await p.fill('#memory-list [data-memory="m-a"] .memory-edit', 'Scritto senza rete');
+    await p.click('#memory-list [data-memory="m-a"] [data-save-edit]');
+    await p.waitForTimeout(200);
+    text = await shown(p);
+    check('rete assente: modifica nota con messaggio italiano', !/fetch/i.test(text) && text.includes('Rete assente'), text);
+    await ctx.setOffline(false);
+    // Modifica in corso + aggiornamento dalla rete: il testo scritto resta.
+    await p.fill('#memory-list [data-memory="m-a"] .memory-edit', 'Una modifica a metà');
+    await p.evaluate(() => window.dispatchEvent(new Event('online')));
+    await p.waitForTimeout(300);
+    const kept = await p.locator('#memory-list [data-memory="m-a"] .memory-edit').count() ? await p.inputValue('#memory-list [data-memory="m-a"] .memory-edit') : '(textarea sparita)';
+    check('modifica in corso: resta dopo un aggiornamento', kept === 'Una modifica a metà', kept);
+    await p.click('#memory-list [data-memory="m-a"] [data-cancel]');
+    await p.click('#memory-list [data-memory="m-a"] [data-delete]');
+    await p.evaluate(() => window.dispatchEvent(new Event('online')));
+    await p.waitForTimeout(300);
+    check('conferma di cancellazione: resta dopo un aggiornamento', await p.locator('#memory-list [data-memory="m-a"] [data-confirm-delete]').isVisible());
+    await ctx.close();
+  }
+  {
+    // Salvataggio che fallisce davvero: bozza tenuta, "Riprova", messaggio italiano.
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Carmelo', seed, failAdd: true } });
+    await p.waitForTimeout(200);
+    await p.click('[data-memories="d1-eiffel"]');
+    await p.fill('#memory-note', 'Da non perdere');
+    await p.click('#memory-save');
+    await p.waitForTimeout(300);
+    const text = await shown(p);
+    check('salvataggio fallito: bozza tenuta e “Riprova”', (await p.inputValue('#memory-note')) === 'Da non perdere' && (await p.locator('#memory-save').textContent()) === 'Riprova');
+    check('salvataggio fallito: messaggio italiano, senza "fetch"', !/fetch/i.test(text) && text.includes('Rete assente'), text);
+    await ctx.close();
+  }
+  {
+    // Uscita senza risposta dal server: sul telefono non resta niente.
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Carmelo', seed, failSignOut: true } });
+    await p.waitForTimeout(200);
+    await p.click('[data-memories="d1-eiffel"]');
+    await p.fill('#memory-note', 'Bozza privata');
+    await p.click('#memory-sheet [data-close]');
+    await p.click('#account-button');
+    await p.click('#logout-button');
+    await p.waitForTimeout(200);
+    const state = await p.evaluate(() => ({ label: document.getElementById('account-button').getAttribute('aria-label'), cache: localStorage.getItem('parigi-a-due-2026-v1-memories'), dialogs: [...document.querySelectorAll('dialog')].filter(d => d.open).length, toast: document.getElementById('toast').textContent }));
+    check('uscita senza server: ricordi tolti dal telefono', state.label === 'Accedi ai ricordi' && state.cache === null && state.dialogs === 0 && state.toast.startsWith('Sei uscito da questo dispositivo.'), JSON.stringify(state));
+    // Rientro: la bozza della sessione precedente non c'è più.
+    await p.click('#account-button');
+    await p.fill('#login-email', 'carmelo@example.test');
+    await p.fill('#login-password', 'password-giusta');
+    await p.click('#login-submit');
+    await p.waitForTimeout(200);
+    await p.click('[data-memories="d1-eiffel"]');
+    check('uscita: le bozze sono cancellate', (await p.inputValue('#memory-note')) === '');
     await ctx.close();
   }
 

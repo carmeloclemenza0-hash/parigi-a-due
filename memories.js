@@ -9,6 +9,10 @@
   const JPEG_QUALITY = 0.82;
   const MAX_PHOTOS = 6;
   const MAX_NOTE = 2000;
+  // Tornando sull'app: lista riletta dopo 1 minuto, URL delle foto (validi 1 h) rinnovati dopo 45.
+  const LIST_REFRESH_MS = 60 * 1000;
+  const URL_RENEW_MS = 45 * 60 * 1000;
+  const NETWORK_MESSAGE = 'Rete assente o instabile.';
 
   // Ogni tappa per id, con il suo giorno: serve per titoli e diario.
   const stops = new Map();
@@ -41,9 +45,23 @@
   let api = null;
   let unavailable = '';       // messaggio se i ricordi non possono funzionare (libreria mancante)
   let user = null;
+  let sessionFailed = false;  // sessione non verificabile (rete): si mostra la copia salvata in sola lettura
   let memories = readCache();
   let urls = {};              // percorso foto → URL firmato
-  let lastRefresh = 0;
+  let lastList = 0;           // ultimo elenco scaricato
+  let lastUrls = 0;           // ultimo rinnovo completo degli URL foto
+  // Cambia a ogni accesso/uscita: le risposte arrivate dopo appartengono a un'altra sessione e si scartano.
+  let generation = 0;
+  const editing = {};         // modifiche di nota in corso: id ricordo → testo scritto finora
+  const confirming = new Set(); // ricordi con la domanda "Cancellare?" aperta
+  const busy = new Set();     // ricordi con una richiesta in corso (niente doppio tap)
+
+  const canSee = () => Boolean(user) || sessionFailed;
+  // Messaggio da mostrare: mai l'inglese di "Failed to fetch".
+  function reason(error) {
+    const message = (error && error.message) || '';
+    return !navigator.onLine || /failed to fetch|networkerror|load failed|network request failed/i.test(message) ? NETWORK_MESSAGE : message || 'errore sconosciuto.';
+  }
 
   function readCache() {
     try {
@@ -89,13 +107,15 @@
     $('login-error').hidden = true;
     try {
       user = await api.signIn($('login-email').value.trim(), $('login-password').value);
+      sessionFailed = false;
+      generation++;
       $('login-password').value = '';
       $('login-dialog').close();
       toast(`Ciao ${user.name}! I ricordi sono pronti.`);
       renderAll();
       await refresh();
     } catch (error) {
-      $('login-error').textContent = navigator.onLine ? error.message : 'Serve la rete per accedere.';
+      $('login-error').textContent = navigator.onLine ? reason(error) : 'Serve la rete per accedere.';
       $('login-error').hidden = false;
     } finally {
       $('login-submit').disabled = false;
@@ -110,25 +130,39 @@
       $('new-password').value = '';
       $('password-status').textContent = 'Password cambiata.';
     } catch (error) {
-      $('password-status').textContent = `Password non cambiata: ${error.message}`;
+      $('password-status').textContent = `Password non cambiata: ${reason(error)}`;
     } finally {
       $('password-submit').disabled = false;
     }
   });
 
-  $('logout-button').addEventListener('click', async () => {
-    try {
-      await api.signOut();
-    } catch (error) {
-      toast(`Uscita non riuscita: ${error.message}`);
-      return;
-    }
-    // Su un telefono condiviso non devono restare ricordi visibili.
-    user = null; memories = []; urls = {};
+  // Su un telefono condiviso non deve restare niente: ricordi, foto, bozze, finestre aperte.
+  function forgetLocal() {
+    generation++;
+    openStop = null;          // prima di chiudere: il "close" del pannello non deve salvare la bozza
+    for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
+    user = null; sessionFailed = false; memories = []; urls = {}; lastList = 0; lastUrls = 0;
     clearCache();
-    $('account-dialog').close();
+    for (const key of Object.keys(drafts)) delete drafts[key];
+    for (const key of Object.keys(editing)) delete editing[key];
+    confirming.clear(); busy.clear(); saving.clear();
+    $('memory-note').value = '';
+    previewUrls.forEach(url => URL.revokeObjectURL(url));
+    previewUrls = [];
+    $('memory-previews').innerHTML = '';
+    $('photo-viewer-img').removeAttribute('src');
     renderAll();
-    toast('Sei uscito da questo dispositivo.');
+  }
+
+  $('logout-button').addEventListener('click', async () => {
+    $('logout-button').disabled = true;
+    let problem = '';
+    try { await api.signOut(); }
+    catch (error) { problem = reason(error); }
+    finally { $('logout-button').disabled = false; }
+    // La pulizia sul telefono si fa sempre, anche se il server non risponde.
+    forgetLocal();
+    toast(problem ? `Sei uscito da questo dispositivo. Il server non ha confermato (${problem}): lì l’accesso scade da solo.` : 'Sei uscito da questo dispositivo.');
   });
 
   // Chiude il dialog in cui sta il pulsante (Annulla, Chiudi, ×).
@@ -140,29 +174,66 @@
   // --- Sincronizzazione ---
   async function refresh() {
     if (!user) { renderAll(); return; }
+    const mine = generation;
+    let problem = '';
+    // Elenco e foto in due tentativi separati: se fallisce solo una parte, l'altra si tiene.
     try {
-      memories = await api.list();
+      const list = await api.list();
+      if (mine !== generation) return;
+      memories = list;
       writeCache(memories);
-      lastRefresh = Date.now();
-      urls = await api.photoUrls(memories.flatMap(m => m.photos));
+      lastList = Date.now();
     } catch (error) {
-      // Offline si resta sulla copia salvata, senza disturbare; con la rete l'errore si dice.
-      if (navigator.onLine) toast(`Ricordi non aggiornati: ${error.message}`);
+      if (mine !== generation) return;
+      problem = `Ricordi non aggiornati: ${reason(error)}`;
+    }
+    // URL firmati: tutti quando i vecchi stanno per scadere, altrimenti solo quelli che mancano.
+    const stale = Date.now() - lastUrls > URL_RENEW_MS;
+    const wanted = memories.flatMap(m => m.photos).filter(path => stale || !urls[path]);
+    if (wanted.length) {
+      try {
+        const fresh = await api.photoUrls(wanted);
+        if (mine !== generation) return;
+        urls = stale ? fresh : { ...urls, ...fresh };
+        if (stale) lastUrls = Date.now();
+      } catch (error) {
+        if (mine !== generation) return;
+        problem ||= `Foto non aggiornate: ${reason(error)}`;
+      }
+    }
+    // Offline si resta sulla copia salvata, senza disturbare; con la rete l'errore si dice.
+    if (problem && navigator.onLine) toast(problem);
+    renderAll();
+  }
+
+  // Sessione: solo un "nessuno collegato" certo cancella la copia sul telefono.
+  async function checkSession() {
+    try {
+      const found = await api.currentUser();
+      if (found?.id !== user?.id) generation++;
+      user = found;
+      sessionFailed = false;
+      if (!user) { memories = []; urls = {}; clearCache(); }
+    } catch (error) {
+      // Rete instabile o token da rinnovare: si tiene la copia salvata, in sola lettura, e si riprova col ritorno della rete.
+      sessionFailed = !user;
+      toast('Accesso ai ricordi non verificato: li vedi in sola lettura finché torna la rete.');
     }
     renderAll();
+    if (user) await refresh();
   }
 
   // --- Pulsanti sotto le tappe ---
   function buttonLabel(stopId, counts) {
     if (unavailable) return 'Ricordi non disponibili';
-    if (!user) return 'Accedi per i ricordi';
+    if (!canSee()) return 'Accedi per i ricordi';
     return counts[stopId] ? `Ricordi · ${counts[stopId]}` : 'Aggiungi un ricordo';
   }
   function renderButtons() {
     const counts = countByStop(memories);
     for (const button of document.querySelectorAll('[data-memories]')) {
       button.textContent = buttonLabel(button.dataset.memories, counts);
-      button.classList.toggle('has-memories', Boolean(user && counts[button.dataset.memories]));
+      button.classList.toggle('has-memories', Boolean(canSee() && counts[button.dataset.memories]));
       button.disabled = Boolean(unavailable);
     }
   }
@@ -171,37 +242,71 @@
   // --- Post-it di un ricordo (pannello e diario) ---
   const timeFormat = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Paris', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   function memoryCard(memory, editable) {
+    const own = editable && user && memory.authorId === user.id;
+    const pending = busy.has(memory.id) ? ' disabled' : '';
+    // Modifica in corso: la textarea si ridisegna con il testo scritto finora (sopravvive agli aggiornamenti).
+    if (own && memory.id in editing) {
+      return `<article class="memory-card" data-memory="${esc(memory.id)}"><textarea class="memory-edit" maxlength="${MAX_NOTE}" aria-label="Modifica la nota">${esc(editing[memory.id])}</textarea><footer class="memory-meta"><span></span><span class="memory-actions"><button type="button" class="text-button" data-cancel${pending}>Annulla</button><button type="button" class="text-button danger" data-save-edit${pending}>${pending ? 'Salvo…' : 'Salva'}</button></span></footer></article>`;
+    }
     const photos = memory.photos.map(path => urls[path]
       ? `<button type="button" class="memory-photo" data-photo="${esc(path)}"><img src="${esc(urls[path])}" alt="Foto di ${esc(memory.authorName)}" loading="lazy"></button>`
       : '<span class="memory-photo is-missing">Foto visibile con la rete</span>').join('');
-    const own = editable && user && memory.authorId === user.id;
-    return `<article class="memory-card" data-memory="${esc(memory.id)}">${memory.note ? `<p class="memory-note">${esc(memory.note)}</p>` : ''}${photos ? `<div class="memory-photos">${photos}</div>` : ''}<footer class="memory-meta"><span>${esc(memory.authorName)} · ${esc(timeFormat.format(new Date(memory.createdAt)))}</span>${own ? '<span class="memory-actions"><button type="button" class="text-button" data-edit>Modifica</button><button type="button" class="text-button" data-delete>Cancella</button></span>' : ''}</footer></article>`;
+    const meta = own && confirming.has(memory.id)
+      ? `<span>Cancellare questo ricordo?</span><span class="memory-actions"><button type="button" class="text-button" data-cancel${pending}>No</button><button type="button" class="text-button danger" data-confirm-delete${pending}>${pending ? 'Cancello…' : 'Sì, cancella'}</button></span>`
+      : `<span>${esc(memory.authorName)} · ${esc(timeFormat.format(new Date(memory.createdAt)))}</span>${own ? '<span class="memory-actions"><button type="button" class="text-button" data-edit>Modifica</button><button type="button" class="text-button" data-delete>Cancella</button></span>' : ''}`;
+    return `<article class="memory-card" data-memory="${esc(memory.id)}">${memory.note ? `<p class="memory-note">${esc(memory.note)}</p>` : ''}${photos ? `<div class="memory-photos">${photos}</div>` : ''}<footer class="memory-meta">${meta}</footer></article>`;
   }
 
   // --- Pannello dal basso ---
   let openStop = null;
-  const drafts = {};          // bozze per tappa: { note, photos: Blob[] } — restano finché la pagina è aperta
+  const drafts = {};          // bozze per tappa: { note, photos: Blob[], retry } — restano finché la pagina è aperta
+  const saving = new Set();   // tappe con un salvataggio in corso
+  let resizing = 0;           // scelte di foto ancora in ridimensionamento
   let previewUrls = [];
 
   function setStatus(message, isError = false) {
     $('memory-status').textContent = message;
     $('memory-status').classList.toggle('is-error', isError);
   }
+  // Esito di un'azione finita dopo un'attesa: nel pannello se è ancora quello giusto, altrimenti in un avviso.
+  function report(stopId, message, isError = false) {
+    if (openStop === stopId) setStatus(message, isError);
+    else toast(message);
+  }
+  function renderSaveState() {
+    if (!openStop) return;
+    const preparing = resizing > 0;
+    const busyNow = saving.has(openStop);
+    $('memory-save').disabled = preparing || busyNow;
+    $('memory-photos').disabled = preparing || busyNow;
+    $('memory-note').readOnly = busyNow;
+    $('memory-save').textContent = preparing ? 'Preparo le foto…' : busyNow ? 'Salvo…' : drafts[openStop].retry ? 'Riprova' : 'Salva';
+  }
   function openSheet(stopId) {
-    if (!user) { openLogin(); return; }
+    if (!canSee()) { openLogin(); return; }
     openStop = stopId;
     drafts[stopId] ||= { note: '', photos: [] };
     $('sheet-title').textContent = stops.get(stopId).item.title;
     $('memory-note').value = drafts[stopId].note;
-    $('memory-save').textContent = 'Salva';
     setStatus('');
     renderSheet();
+    renderSaveState();
     $('memory-sheet').showModal();
   }
   function renderSheet() {
     if (!openStop) return;
+    // Senza sessione verificata si guarda soltanto.
+    $('memory-form').hidden = !user;
+    // Se si stava scrivendo in una modifica, cursore e selezione tornano dov'erano.
+    const active = document.activeElement;
+    const focused = active && active.matches && active.matches('#memory-list .memory-edit')
+      ? { id: active.closest('[data-memory]').dataset.memory, start: active.selectionStart, end: active.selectionEnd } : null;
     const list = memories.filter(m => m.stopId === openStop);
     $('memory-list').innerHTML = list.length ? list.map(m => memoryCard(m, true)).join('') : '<p class="memory-empty">Ancora nessun ricordo qui.</p>';
+    if (focused) {
+      const area = $('memory-list').querySelector(`[data-memory="${CSS.escape(focused.id)}"] .memory-edit`);
+      if (area) { area.focus(); area.setSelectionRange(focused.start, focused.end); }
+    }
     renderPreviews();
   }
   function renderPreviews() {
@@ -217,96 +322,157 @@
   // Foto rimpicciolita nel browser: lato lungo 1600 px, JPEG.
   async function resizePhoto(file) {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-    const size = fitWithin(bitmap.width, bitmap.height);
-    const canvas = Object.assign(document.createElement('canvas'), size);
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, size.width, size.height);
-    bitmap.close();
-    return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Foto non leggibile.')), 'image/jpeg', JPEG_QUALITY));
+    try {
+      const size = fitWithin(bitmap.width, bitmap.height);
+      const canvas = Object.assign(document.createElement('canvas'), size);
+      const context = canvas.getContext('2d');
+      // Sfondo bianco: in JPEG le parti trasparenti (PNG, screenshot) verrebbero nere.
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, size.width, size.height);
+      context.drawImage(bitmap, 0, 0, size.width, size.height);
+      return await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Foto non leggibile.')), 'image/jpeg', JPEG_QUALITY));
+    } finally {
+      bitmap.close();
+    }
   }
 
   $('memory-photos').addEventListener('change', async event => {
     const files = [...event.target.files];
     event.target.value = '';
-    const draft = drafts[openStop];
-    const room = Math.max(0, MAX_PHOTOS - draft.photos.length);
-    if (files.length > room) setStatus(`Al massimo ${MAX_PHOTOS} foto per ricordo: ne ho tenute ${room}.`, true);
-    for (const file of files.slice(0, room)) {
-      try { draft.photos.push(await resizePhoto(file)); }
-      catch (error) { setStatus(`“${file.name}” non si riesce a leggere come foto.`, true); }
+    const stopId = openStop;
+    const draft = drafts[stopId];
+    if (!draft || !files.length) return;
+    // Mentre le foto si preparano, Salva e "Aggiungi foto" aspettano (renderSaveState).
+    resizing++;
+    renderSaveState();
+    let skipped = 0;
+    const unreadable = [];
+    try {
+      for (const file of files) {
+        // Lo spazio si ricontrolla a ogni foto: il limite di 6 resta anche con più scelte di fila.
+        if (draft.photos.length >= MAX_PHOTOS) { skipped++; continue; }
+        try {
+          const blob = await resizePhoto(file);
+          if (draft.photos.length < MAX_PHOTOS) draft.photos.push(blob); else skipped++;
+        } catch (error) { unreadable.push(file.name); }
+      }
+    } finally {
+      resizing--;
     }
-    renderPreviews();
+    if (unreadable.length) report(stopId, `“${unreadable.join('”, “')}” non si riesce a leggere come foto.`, true);
+    else if (skipped) report(stopId, `Al massimo ${MAX_PHOTOS} foto per ricordo: ne ho tenute ${draft.photos.length}.`, true);
+    if (openStop === stopId) renderPreviews();
+    renderSaveState();
   });
 
   $('memory-form').addEventListener('submit', async event => {
     event.preventDefault();
     const stopId = openStop;
     const draft = drafts[stopId];
+    if (!user || !draft || resizing || saving.has(stopId)) return;
     draft.note = $('memory-note').value;
     const note = draft.note.trim().slice(0, MAX_NOTE);
     if (!note && !draft.photos.length) { setStatus('Scrivi qualcosa o aggiungi una foto.', true); return; }
     if (!navigator.onLine) {
+      draft.retry = true;
       setStatus('Nessuna rete: il ricordo è rimasto qui. Tocca “Riprova” quando torni online.', true);
-      $('memory-save').textContent = 'Riprova';
+      renderSaveState();
       return;
     }
-    $('memory-save').disabled = true;
-    $('memory-save').textContent = 'Salvo…';
+    const mine = generation;
+    saving.add(stopId);
+    renderSaveState();
     let saved;
     try {
-      saved = await api.add({ stopId, note, photos: draft.photos });
+      // Copia delle foto: la bozza resta intatta qualunque cosa succeda durante l'invio.
+      saved = await api.add({ stopId, note, photos: [...draft.photos] });
     } catch (error) {
-      setStatus(`Non salvato: ${error.message} Il ricordo è rimasto qui: tocca “Riprova”.`, true);
-      $('memory-save').textContent = 'Riprova';
+      saving.delete(stopId);
+      if (mine !== generation) return;
+      draft.retry = true;
+      report(stopId, `Non salvato: ${reason(error)} Il ricordo è rimasto qui: tocca “Riprova”.`, true);
+      renderSaveState();
       return;
-    } finally {
-      $('memory-save').disabled = false;
     }
+    saving.delete(stopId);
+    if (mine !== generation) return;
     memories.push(saved);
     writeCache(memories);
     drafts[stopId] = { note: '', photos: [] };
-    $('memory-note').value = '';
-    $('memory-save').textContent = 'Salva';
+    if (openStop === stopId) $('memory-note').value = '';
+    renderSaveState();
     try { Object.assign(urls, await api.photoUrls(saved.photos)); }
-    catch (error) { toast(`Ricordo salvato, ma le foto si vedranno al prossimo aggiornamento: ${error.message}`); }
+    catch (error) { toast(`Ricordo salvato, ma le foto si vedranno al prossimo aggiornamento: ${reason(error)}`); }
+    if (mine !== generation) return;
     renderAll();
-    setStatus('Ricordo salvato.');
+    report(stopId, 'Ricordo salvato.');
   });
 
   // Modifica e cancellazione: solo i propri ricordi, con conferma dentro il post-it.
+  // Lo stato (modifica/conferma in corso) sta in `editing`/`confirming`, così un aggiornamento non lo perde.
+  $('memory-list').addEventListener('input', event => {
+    const area = event.target.closest('.memory-edit');
+    if (area) editing[area.closest('[data-memory]').dataset.memory] = area.value;
+  });
   $('memory-list').addEventListener('click', async event => {
     const card = event.target.closest('[data-memory]');
     const memory = card && memories.find(m => m.id === card.dataset.memory);
-    if (!memory) return;
+    if (!memory || busy.has(memory.id)) return;
+    const stopId = openStop;
+    const mine = generation;
     if (event.target.closest('[data-delete]')) {
-      card.querySelector('.memory-meta').innerHTML = '<span>Cancellare questo ricordo?</span><span class="memory-actions"><button type="button" class="text-button" data-cancel>No</button><button type="button" class="text-button danger" data-confirm-delete>Sì, cancella</button></span>';
+      confirming.add(memory.id);
+      renderSheet();
     } else if (event.target.closest('[data-confirm-delete]')) {
+      busy.add(memory.id);
+      renderSheet();
       try {
         await api.remove(memory);
+        if (mine !== generation) return;
         memories = memories.filter(m => m.id !== memory.id);
         writeCache(memories);
+        confirming.delete(memory.id);
+        report(stopId, 'Ricordo cancellato.');
+      } catch (error) {
+        if (mine !== generation) return;
+        report(stopId, `Non cancellato: ${reason(error)}`, true);
+      } finally {
+        busy.delete(memory.id);
         renderAll();
-        setStatus('Ricordo cancellato.');
-      } catch (error) { setStatus(`Non cancellato: ${error.message}`, true); }
+      }
     } else if (event.target.closest('[data-edit]')) {
-      card.innerHTML = `<textarea class="memory-edit" maxlength="${MAX_NOTE}" aria-label="Modifica la nota">${esc(memory.note)}</textarea><footer class="memory-meta"><span></span><span class="memory-actions"><button type="button" class="text-button" data-cancel>Annulla</button><button type="button" class="text-button danger" data-save-edit>Salva</button></span></footer>`;
-      card.querySelector('textarea').focus();
+      editing[memory.id] = memory.note;
+      renderSheet();
+      $('memory-list').querySelector(`[data-memory="${CSS.escape(memory.id)}"] textarea`).focus();
     } else if (event.target.closest('[data-save-edit]')) {
-      const note = card.querySelector('textarea').value.trim().slice(0, MAX_NOTE);
+      editing[memory.id] = card.querySelector('textarea').value;
+      const note = editing[memory.id].trim().slice(0, MAX_NOTE);
       if (!note && !memory.photos.length) { setStatus('Un ricordo senza foto ha bisogno di una nota.', true); return; }
+      busy.add(memory.id);
+      renderSheet();
       try {
         const updated = await api.updateNote(memory.id, note);
+        if (mine !== generation) return;
         memories = memories.map(m => m.id === memory.id ? updated : m);
         writeCache(memories);
+        delete editing[memory.id];
+        report(stopId, 'Nota modificata.');
+      } catch (error) {
+        if (mine !== generation) return;
+        report(stopId, `Modifica non salvata: ${reason(error)}`, true);
+      } finally {
+        busy.delete(memory.id);
         renderAll();
-        setStatus('Nota modificata.');
-      } catch (error) { setStatus(`Modifica non salvata: ${error.message}`, true); }
+      }
     } else if (event.target.closest('[data-cancel]')) {
+      delete editing[memory.id];
+      confirming.delete(memory.id);
       renderSheet();
     }
   });
   $('memory-previews').addEventListener('click', event => {
     const unpick = event.target.closest('[data-unpick]');
-    if (!unpick) return;
+    if (!unpick || saving.has(openStop)) return;
     drafts[openStop].photos.splice(Number(unpick.dataset.unpick), 1);
     renderPreviews();
   });
@@ -326,7 +492,7 @@
   function renderDiary() {
     const box = $('diary');
     if (unavailable) { box.innerHTML = `<p class="diary-empty">${esc(unavailable)}</p>`; return; }
-    if (!user) { box.innerHTML = '<p class="diary-empty">Il diario è solo per noi due.</p><button type="button" class="button secondary" data-login>Accedi</button>'; return; }
+    if (!canSee()) { box.innerHTML = '<p class="diary-empty">Il diario è solo per noi due.</p><button type="button" class="button secondary" data-login>Accedi</button>'; return; }
     const groups = groupByDay(memories);
     box.innerHTML = groups.length
       ? groups.map(({ day, memories: list }) => `<section class="diary-day"><h3>Giorno ${day.id} · ${esc(day.weekday)} ${esc(day.shortDate)}</h3>${list.map(m => `<p class="diary-stop">${esc(stops.get(m.stopId).item.title)}</p>${memoryCard(m, false)}`).join('')}</section>`).join('')
@@ -340,10 +506,16 @@
     renderDiary();
   }
 
-  window.addEventListener('online', () => { if (user) refresh(); });
-  // Gli URL delle foto scadono dopo un'ora: tornando sull'app dopo un po' si rinnovano.
+  // Torna la rete: se la sessione non si era potuta verificare la si riprova, altrimenti si aggiorna.
+  window.addEventListener('online', () => {
+    if (sessionFailed) checkSession();
+    else if (user) refresh();
+  });
+  // Tornando sull'app dopo un po': lista dopo 1 minuto, URL delle foto (che scadono dopo un'ora) dopo 45.
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && user && Date.now() - lastRefresh > 45 * 60 * 1000) refresh();
+    if (document.hidden) return;
+    if (sessionFailed && navigator.onLine) checkSession();
+    else if (user && (Date.now() - lastList > LIST_REFRESH_MS || Date.now() - lastUrls > URL_RENEW_MS)) refresh();
   });
 
   (async function init() {
@@ -354,13 +526,6 @@
       renderAll();
       return;
     }
-    try {
-      user = await api.currentUser();
-    } catch (error) {
-      toast(`Accesso ai ricordi non verificato: ${error.message}`);
-    }
-    if (!user) { memories = []; clearCache(); }
-    renderAll();
-    refresh();
+    await checkSession();
   })();
 })();
