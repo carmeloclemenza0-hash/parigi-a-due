@@ -46,12 +46,15 @@
   let unavailable = '';       // messaggio se i ricordi non possono funzionare (libreria mancante)
   let user = null;
   let sessionFailed = false;  // sessione non verificabile (rete): si mostra la copia salvata in sola lettura
+  let sessionRetry = false;   // verifica della sessione da ripetere al ritorno della rete o sull'app
   let memories = readCache();
   let urls = {};              // percorso foto → URL firmato
-  let lastList = 0;           // ultimo elenco scaricato
+  let lastList = 0;           // ultimo elenco scaricato e usato
   let lastUrls = 0;           // ultimo rinnovo completo degli URL foto
   // Cambia a ogni accesso/uscita: le risposte arrivate dopo appartengono a un'altra sessione e si scartano.
   let generation = 0;
+  // Cambia a ogni salvataggio/modifica/cancellazione riusciti: un elenco chiesto prima è vecchio e si scarta.
+  let localVersion = 0;
   const editing = {};         // modifiche di nota in corso: id ricordo → testo scritto finora
   const confirming = new Set(); // ricordi con la domanda "Cancellare?" aperta
   const busy = new Set();     // ricordi con una richiesta in corso (niente doppio tap)
@@ -76,6 +79,13 @@
   }
   function clearCache() {
     try { localStorage.removeItem(CACHE_KEY); } catch (error) { /* niente da togliere */ }
+  }
+  // Ricordo nuovo o aggiornato: si sostituisce per id, così un aggiornamento arrivato prima non crea doppioni.
+  function putMemory(memory) {
+    const index = memories.findIndex(m => m.id === memory.id);
+    memories = index < 0 ? [...memories, memory] : memories.map((m, i) => i === index ? memory : m);
+    localVersion++;
+    writeCache(memories);
   }
 
   // --- Accesso ---
@@ -108,6 +118,7 @@
     try {
       user = await api.signIn($('login-email').value.trim(), $('login-password').value);
       sessionFailed = false;
+      sessionRetry = false;
       generation++;
       $('login-password').value = '';
       $('login-dialog').close();
@@ -141,7 +152,7 @@
     generation++;
     openStop = null;          // prima di chiudere: il "close" del pannello non deve salvare la bozza
     for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
-    user = null; sessionFailed = false; memories = []; urls = {}; lastList = 0; lastUrls = 0;
+    user = null; sessionFailed = false; sessionRetry = false; memories = []; urls = {}; lastList = 0; lastUrls = 0;
     clearCache();
     for (const key of Object.keys(drafts)) delete drafts[key];
     for (const key of Object.keys(editing)) delete editing[key];
@@ -175,14 +186,19 @@
   async function refresh() {
     if (!user) { renderAll(); return; }
     const mine = generation;
+    const version = localVersion;
     let problem = '';
     // Elenco e foto in due tentativi separati: se fallisce solo una parte, l'altra si tiene.
     try {
       const list = await api.list();
       if (mine !== generation) return;
-      memories = list;
-      writeCache(memories);
-      lastList = Date.now();
+      // Nel frattempo qui si è salvato/cancellato qualcosa: l'elenco può non saperlo, si tiene quello locale
+      // (il prossimo aggiornamento porterà le novità dell'altro telefono).
+      if (version === localVersion) {
+        memories = list;
+        writeCache(memories);
+        lastList = Date.now();
+      }
     } catch (error) {
       if (mine !== generation) return;
       problem = `Ricordi non aggiornati: ${reason(error)}`;
@@ -206,18 +222,31 @@
     renderAll();
   }
 
-  // Sessione: solo un "nessuno collegato" certo cancella la copia sul telefono.
+  // Sessione: solo un "nessuno collegato" o un rifiuto certo cancellano la copia sul telefono.
   async function checkSession() {
     try {
       const found = await api.currentUser();
       if (found?.id !== user?.id) generation++;
       user = found;
       sessionFailed = false;
+      sessionRetry = false;
       if (!user) { memories = []; urls = {}; clearCache(); }
     } catch (error) {
-      // Rete instabile o token da rinnovare: si tiene la copia salvata, in sola lettura, e si riprova col ritorno della rete.
-      sessionFailed = !user;
-      toast('Accesso ai ricordi non verificato: li vedi in sola lettura finché torna la rete.');
+      if (error.code === 'auth') {
+        // Sessione revocata o scaduta davvero: come un'uscita, sul telefono non resta niente.
+        forgetLocal();
+        toast('Sessione scaduta: accedi di nuovo.');
+        return;
+      }
+      sessionRetry = true;
+      if (error.code === 'network') {
+        // Rete instabile: si tiene la copia salvata, in sola lettura, e si riprova col ritorno della rete.
+        sessionFailed = !user;
+        toast('Accesso ai ricordi non verificato: li vedi in sola lettura finché torna la rete.');
+      } else {
+        // Altro errore del server: la copia resta sul telefono ma non si mostra; si riprova più tardi.
+        toast(`Accesso ai ricordi non verificato: ${reason(error)}`);
+      }
     }
     renderAll();
     if (user) await refresh();
@@ -396,8 +425,7 @@
     }
     saving.delete(stopId);
     if (mine !== generation) return;
-    memories.push(saved);
-    writeCache(memories);
+    putMemory(saved);
     drafts[stopId] = { note: '', photos: [] };
     if (openStop === stopId) $('memory-note').value = '';
     renderSaveState();
@@ -430,6 +458,7 @@
         await api.remove(memory);
         if (mine !== generation) return;
         memories = memories.filter(m => m.id !== memory.id);
+        localVersion++;
         writeCache(memories);
         confirming.delete(memory.id);
         report(stopId, 'Ricordo cancellato.');
@@ -453,8 +482,7 @@
       try {
         const updated = await api.updateNote(memory.id, note);
         if (mine !== generation) return;
-        memories = memories.map(m => m.id === memory.id ? updated : m);
-        writeCache(memories);
+        putMemory(updated);
         delete editing[memory.id];
         report(stopId, 'Nota modificata.');
       } catch (error) {
@@ -508,14 +536,16 @@
 
   // Torna la rete: se la sessione non si era potuta verificare la si riprova, altrimenti si aggiorna.
   window.addEventListener('online', () => {
-    if (sessionFailed) checkSession();
+    if (sessionRetry) checkSession();
     else if (user) refresh();
   });
   // Tornando sull'app dopo un po': lista dopo 1 minuto, URL delle foto (che scadono dopo un'ora) dopo 45.
+  // Gli URL contano solo se ci sono foto: senza, lastUrls non cambia mai e farebbe aggiornare a ogni ritorno.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
-    if (sessionFailed && navigator.onLine) checkSession();
-    else if (user && (Date.now() - lastList > LIST_REFRESH_MS || Date.now() - lastUrls > URL_RENEW_MS)) refresh();
+    const urlsOld = memories.some(m => m.photos.length) && Date.now() - lastUrls > URL_RENEW_MS;
+    if (sessionRetry && navigator.onLine) checkSession();
+    else if (user && (Date.now() - lastList > LIST_REFRESH_MS || urlsOld)) refresh();
   });
 
   (async function init() {

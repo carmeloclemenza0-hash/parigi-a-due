@@ -11,19 +11,33 @@ async (page) => {
 
   // Versione finta di Supabase per i test: stessa forma di memories-api.js, dati in memoria.
   // Password valida per entrambi: "password-giusta". Opzioni: signedIn ('Carmelo'|'Adiel'), seed, failList,
-  // failSession / failAdd / failSignOut (lanciano 'Failed to fetch' come la rete vera; window.__fake.failSession si può spegnere).
+  // failSession (true: rete, code 'network'; 'auth': sessione revocata, code 'auth'), failAdd / failSignOut
+  // (lanciano 'Failed to fetch' come la rete vera). Da window.__fake si cambiano al volo failSession,
+  // listDelay / addDelay (ms di attesa prima della risposta) e si leggono le chiamate a list (listCalls).
   const fakeMemoriesApi = ({ signedIn = null, seed = [], failList = false, failSession = false, failAdd = false, failSignOut = false } = {}) => {
     const people = { 'carmelo@example.test': { id: 'u-carmelo', name: 'Carmelo' }, 'adiel@example.test': { id: 'u-adiel', name: 'Adiel' } };
-    const fake = window.__fake = { memories: seed.map(m => ({ ...m })), uploads: [], newPassword: null, failSession };
+    const fake = window.__fake = { memories: seed.map(m => ({ ...m })), uploads: [], newPassword: null, failSession, listDelay: 0, addDelay: 0, listCalls: 0 };
     let user = signedIn ? Object.values(people).find(p => p.name === signedIn) : null;
     const needNetwork = () => { if (!navigator.onLine) throw new Error('Failed to fetch'); };
+    const wait = ms => ms && new Promise(resolve => setTimeout(resolve, ms));
     const pixel = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
     window.PARIS_MEMORIES_API = {
-      async currentUser() { if (fake.failSession) throw new Error('Failed to fetch'); return user; },
+      async currentUser() {
+        if (fake.failSession === 'auth') throw Object.assign(new Error('Sessione scaduta: accedi di nuovo.'), { code: 'auth' });
+        if (fake.failSession) throw Object.assign(new Error('Rete assente o instabile.'), { code: 'network' });
+        return user;
+      },
       async signIn(email, password) { needNetwork(); const p = people[email]; if (!p || password !== 'password-giusta') throw new Error('Email o password non corrette.'); user = p; return p; },
       async signOut() { user = null; if (failSignOut) throw new Error('Failed to fetch'); },
       async changePassword(password) { needNetwork(); fake.newPassword = password; },
-      async list() { needNetwork(); if (failList) throw new Error('Servizio non raggiungibile.'); return fake.memories.map(m => ({ ...m })).sort((a, b) => a.createdAt.localeCompare(b.createdAt)); },
+      async list() {
+        needNetwork(); fake.listCalls++;
+        if (failList) throw new Error('Servizio non raggiungibile.');
+        // La fotografia del database si fa subito; la risposta può arrivare dopo (listDelay).
+        const snapshot = fake.memories.map(m => ({ ...m })).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        await wait(fake.listDelay);
+        return snapshot;
+      },
       async add({ stopId, note, photos }) {
         needNetwork();
         if (!user) throw new Error('Non autenticato.');
@@ -36,6 +50,8 @@ async (page) => {
         }
         const memory = { id: `m${Date.now()}${fake.memories.length}`, stopId, authorId: user.id, authorName: user.name, note, photos: paths, createdAt: new Date().toISOString() };
         fake.memories.push(memory);
+        // La riga è già nel database, la risposta arriva dopo (addDelay).
+        await wait(fake.addDelay);
         return { ...memory };
       },
       async updateNote(id, note) { needNetwork(); if (!user) throw new Error('Non autenticato.'); const m = fake.memories.find(x => x.id === id); if (!m) throw new Error('Ricordo non trovato.'); m.note = note; return { ...m }; },
@@ -563,6 +579,192 @@ async (page) => {
     await p.waitForTimeout(200);
     await p.click('[data-memories="d1-eiffel"]');
     check('uscita: le bozze sono cancellate', (await p.inputValue('#memory-note')) === '');
+    await ctx.close();
+  }
+
+  {
+    // Sessione revocata davvero (non la rete): si esce come con "Esci", senza mostrare la copia privata.
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Carmelo', seed, failSession: 'auth' } });
+    await p.evaluate(s => localStorage.setItem('parigi-a-due-2026-v1-memories', JSON.stringify(s)), seed);
+    await p.reload();
+    await p.waitForTimeout(300);
+    const state = await p.evaluate(() => ({ label: document.getElementById('account-button').getAttribute('aria-label'), stop: document.querySelector('[data-memories="d1-eiffel"]').textContent, cache: localStorage.getItem('parigi-a-due-2026-v1-memories'), toast: document.getElementById('toast').textContent }));
+    check('sessione scaduta: si esce e la copia sul telefono sparisce', state.label === 'Accedi ai ricordi' && state.stop === 'Accedi per i ricordi' && state.cache === null, JSON.stringify(state));
+    check('sessione scaduta: messaggio "Sessione scaduta: accedi di nuovo."', state.toast === 'Sessione scaduta: accedi di nuovo.', state.toast);
+    await ctx.close();
+  }
+  {
+    // Salvataggio e aggiornamento che si incrociano: niente doppioni, niente ricordi cancellati che ricompaiono.
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Adiel', seed } });
+    await p.waitForTimeout(200);
+    await p.click('[data-memories="d1-eiffel"]');
+    await p.fill('#memory-note', 'Salvato mentre si aggiorna');
+    await p.evaluate(() => { window.__fake.addDelay = 300; });
+    await p.click('#memory-save');
+    await p.waitForTimeout(50);
+    // L'aggiornamento parte mentre la risposta del salvataggio è in viaggio: la lista ha già la riga nuova.
+    await p.evaluate(() => window.dispatchEvent(new Event('online')));
+    await p.waitForTimeout(600);
+    const added = { cards: await p.locator('#memory-list .memory-card').count(), label: await p.locator('[data-memories="d1-eiffel"]').textContent() };
+    check('aggiornamento durante il salvataggio: niente doppioni', added.cards === 3 && added.label === 'Ricordi · 3', JSON.stringify(added));
+    // Una lista partita prima della cancellazione arriva dopo: il ricordo cancellato non deve tornare.
+    await p.evaluate(() => { window.__fake.addDelay = 0; window.__fake.listDelay = 400; });
+    await p.click('#memory-list [data-memory="m-a"] [data-delete]');
+    await p.evaluate(() => window.dispatchEvent(new Event('online')));
+    await p.click('#memory-list [data-memory="m-a"] [data-confirm-delete]');
+    await p.waitForTimeout(700);
+    const removed = { gone: await p.locator('#memory-list [data-memory="m-a"]').count() === 0, label: await p.locator('[data-memories="d1-eiffel"]').textContent(), cache: await p.evaluate(() => JSON.parse(localStorage.getItem('parigi-a-due-2026-v1-memories')).some(m => m.id === 'm-a')) };
+    check('aggiornamento durante la cancellazione: il ricordo non ricompare', removed.gone && removed.label === 'Ricordi · 2' && !removed.cache, JSON.stringify(removed));
+    await ctx.close();
+  }
+  {
+    // Tornando sull'app entro un minuto non si riscarica niente, anche se non ci sono foto (prima: ogni volta).
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Adiel', seed: [seed[1]] } });
+    await p.waitForTimeout(300);
+    const calls = () => p.evaluate(() => window.__fake.listCalls);
+    const first = await calls();
+    await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await p.waitForTimeout(200);
+    const soon = await calls();
+    await p.clock.fastForward(61000);
+    await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await p.waitForTimeout(200);
+    const later = await calls();
+    check('ritorno sull’app: entro 1 minuto niente nuovo scaricamento, dopo sì', first === 1 && soon === 1 && later === 2, `${first} → ${soon} → ${later}`);
+    await ctx.close();
+  }
+
+  // 15. Adattatore Supabase vero (memories-api.js) con rete simulata: ogni richiesta a supabase.co riceve
+  // una risposta scritta qui con route.fulfill, niente arriva al database vero. Qui la console non si controlla:
+  // gli avvisi con l'errore originale (in inglese) sono voluti.
+  {
+    const SUPA = 'https://syyxotzmlpgwdnbgzetc.supabase.co';
+    const AUTH = 'parigi-a-due-2026-v1-auth';
+    const MEMBERS = 'parigi-a-due-2026-v1-members';
+    const net = { signIn: null, refresh: 'refresh_token_not_found', members: 'ok', membersDelay: 0, logout: null, logoutDelay: 0, failUpload: 0, uploads: 0, active: 0, maxActive: 0, uploaded: [], removed: [], inserts: 0 };
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'access-control-expose-headers': '*' };
+    // Il contesto può chiudersi con una risposta ancora in attesa: lì l'errore di fulfill non interessa.
+    const reply = (route, status, body) => route.fulfill({ status, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+    const later = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const session = (token, id, ttl = 3600) => ({ access_token: token, refresh_token: `r-${token}`, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + ttl, user: { id, aud: 'authenticated', role: 'authenticated', email: `${id}@example.test` } });
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+    await ctx.addInitScript(fakeMemoriesApi, {}); // la pagina usa la finta; l'adattatore vero si crea a mano qui sotto
+    await ctx.route(`${SUPA}/**`, async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const path = url.pathname;
+      if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors }).catch(() => {});
+      if (path === '/auth/v1/token') {
+        if (url.searchParams.get('grant_type') === 'refresh_token') return reply(route, 400, { code: net.refresh, error_code: net.refresh, msg: 'Invalid Refresh Token' });
+        if (net.signIn) return reply(route, 400, { code: net.signIn, error_code: net.signIn, msg: 'refused' });
+        return reply(route, 200, session('tok-new', 'u-carmelo'));
+      }
+      if (path === '/auth/v1/logout') {
+        net.logout = { scope: url.searchParams.get('scope'), auth: request.headers().authorization };
+        await later(net.logoutDelay);
+        return route.fulfill({ status: 204, headers: cors }).catch(() => {});
+      }
+      if (path === '/rest/v1/couple_members') {
+        await later(net.membersDelay);
+        if (net.members === 'abort') return route.abort('failed').catch(() => {});
+        if (net.members === 'jwt') return reply(route, 401, { code: 'PGRST303', message: 'JWT expired', details: null, hint: null });
+        return reply(route, 200, [{ user_id: 'u-carmelo', name: 'Carmelo' }, { user_id: 'u-adiel', name: 'Adiel' }]);
+      }
+      if (path.startsWith('/storage/v1/object/memories/') && request.method() === 'POST') {
+        const n = ++net.uploads;
+        net.active++; net.maxActive = Math.max(net.maxActive, net.active);
+        await later(150);
+        net.active--;
+        if (n === net.failUpload) return reply(route, 400, { statusCode: '400', error: 'Bad Request', message: 'upload refused' });
+        net.uploaded.push(decodeURIComponent(path.slice('/storage/v1/object/memories/'.length)));
+        return reply(route, 200, { Key: path.slice('/storage/v1/object/'.length), Id: `f${n}` });
+      }
+      if (path === '/storage/v1/object/memories' && request.method() === 'DELETE') { net.removed.push(...(request.postDataJSON().prefixes || [])); return reply(route, 200, []); }
+      if (path === '/rest/v1/memories' && request.method() === 'POST') {
+        net.inserts++;
+        const row = request.postDataJSON();
+        return reply(route, 201, { id: 'm-new', author_id: 'u-carmelo', created_at: new Date().toISOString(), ...(Array.isArray(row) ? row[0] : row) });
+      }
+      return reply(route, 404, { message: 'richiesta non prevista dal test' });
+    });
+    const p = await ctx.newPage();
+    p.on('pageerror', e => errors.push(e.message));
+    await p.goto(BASE);
+    const store = (key, value) => p.evaluate(([key, value]) => value === null ? localStorage.removeItem(key) : localStorage.setItem(key, JSON.stringify(value)), [key, value]);
+
+    // Rete "appesa" sui nomi: currentUser non resta bloccato, usa la sessione e i nomi salvati.
+    await store(AUTH, session('tok-old', 'u-carmelo'));
+    await store(MEMBERS, { 'u-carmelo': 'Carmelo' });
+    net.membersDelay = 8000;
+    const slow = await p.evaluate(async () => {
+      const start = performance.now();
+      try { return { user: await window.createMemoriesApi().currentUser(), ms: Math.round(performance.now() - start) }; }
+      catch (error) { return { error: error.message, ms: Math.round(performance.now() - start) }; }
+    });
+    net.membersDelay = 0;
+    check('adattatore: nomi che non arrivano → utente salvato entro pochi secondi', slow.user?.name === 'Carmelo' && slow.ms < 4500, JSON.stringify(slow));
+
+    // Errori di currentUser: rete e autenticazione si distinguono (code); un'autenticazione rifiutata toglie la sessione.
+    const userError = () => p.evaluate(async auth => {
+      try { return { user: await window.createMemoriesApi().currentUser(), left: localStorage.getItem(auth) }; }
+      catch (error) { return { message: error.message, code: error.code, left: localStorage.getItem(auth) }; }
+    }, AUTH);
+    await store(AUTH, session('tok-old', 'u-carmelo'));
+    await store(MEMBERS, null);
+    net.members = 'jwt';
+    const jwt = await userError();
+    check('adattatore: token rifiutato dal database → errore "auth" e sessione tolta', jwt.code === 'auth' && jwt.left === null && !/jwt/i.test(jwt.message || ''), JSON.stringify(jwt));
+    await store(AUTH, session('tok-old', 'u-carmelo'));
+    net.members = 'abort';
+    const offline = await userError();
+    // La query dei nomi si ritenta da sola: o arriva un errore "network" o, dopo 3 s, la sessione salvata. Mai un'uscita.
+    check('adattatore: rete giù senza nomi salvati → sessione tenuta (errore "network" o utente salvato)', (offline.code === 'network' || offline.user?.id === 'u-carmelo') && offline.left !== null, JSON.stringify({ ...offline, left: Boolean(offline.left) }));
+    net.members = 'ok';
+    await store(AUTH, session('tok-exp', 'u-carmelo', -7200));
+    const revoked = await userError();
+    check('adattatore: rinnovo rifiutato (refresh_token_not_found) → nessuna sessione', (revoked.user === null || revoked.code === 'auth') && revoked.left === null, JSON.stringify(revoked));
+
+    // Accesso rifiutato: messaggio giusto per ogni caso.
+    const signInMessage = code => { net.signIn = code; return p.evaluate(async () => { try { await window.createMemoriesApi().signIn('carmelo@example.test', 'x'); return 'entrato'; } catch (error) { return error.message; } }); };
+    const wrong = await signInMessage('invalid_credentials');
+    const unconfirmed = await signInMessage('email_not_confirmed');
+    const other = await signInMessage('validation_failed');
+    net.signIn = null;
+    check('adattatore: credenziali sbagliate', wrong === 'Email o password non corrette.', wrong);
+    check('adattatore: account non confermato', unconfirmed === 'Account non ancora confermato: va confermato dalla dashboard di Supabase.', unconfirmed);
+    check('adattatore: altro rifiuto → messaggio generico, non "password sbagliata"', other === 'Accesso non riuscito.', other);
+
+    // "Esci" lento seguito da un nuovo accesso: chiavi tolte subito, solo questo dispositivo, la sessione nuova resta.
+    await store(AUTH, session('tok-old', 'u-carmelo'));
+    await store(MEMBERS, { 'u-carmelo': 'Carmelo' });
+    net.logoutDelay = 800;
+    const race = await p.evaluate(async auth => {
+      const api = window.createMemoriesApi();
+      const out = api.signOut();
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const clearedAtOnce = localStorage.getItem(auth) === null;
+      await api.signIn('carmelo@example.test', 'password-giusta');
+      await out.catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return { clearedAtOnce, token: JSON.parse(localStorage.getItem(auth) || 'null')?.access_token || null };
+    }, AUTH);
+    net.logoutDelay = 0;
+    check('adattatore: “Esci” vale solo per questo dispositivo (scope local)', net.logout?.scope === 'local' && net.logout.auth === 'Bearer tok-old', JSON.stringify(net.logout));
+    check('adattatore: uscita lenta non cancella il nuovo accesso', race.clearedAtOnce && race.token === 'tok-new', JSON.stringify(race));
+
+    // Foto caricate 3 alla volta; se una fallisce, nessun ricordo e nessuna foto orfana.
+    const addPhotos = () => p.evaluate(async () => {
+      const photos = Array.from({ length: 5 }, () => new Blob(['x'], { type: 'image/jpeg' }));
+      try { return (await window.createMemoriesApi().add({ stopId: 'd1-eiffel', note: 'prova', photos })).photos.length; }
+      catch (error) { return error.message; }
+    });
+    await store(AUTH, session('tok-old', 'u-carmelo'));
+    const saved = await addPhotos();
+    check('adattatore: foto caricate 3 alla volta', saved === 5 && net.maxActive === 3 && net.inserts === 1, JSON.stringify({ saved, maxActive: net.maxActive, inserts: net.inserts }));
+    Object.assign(net, { uploads: 0, active: 0, maxActive: 0, uploaded: [], removed: [], inserts: 0, failUpload: 2 });
+    const failed = await addPhotos();
+    const leftovers = net.uploaded.filter(path => !net.removed.includes(path));
+    check('adattatore: una foto rifiutata → nessun ricordo, foto già caricate tolte', failed === 'Foto non caricata.' && net.inserts === 0 && net.uploaded.length > 0 && leftovers.length === 0, JSON.stringify({ failed, uploaded: net.uploaded.length, removed: net.removed.length, leftovers }));
     await ctx.close();
   }
 
