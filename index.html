@@ -1175,8 +1175,14 @@ window.PARIS_TRIP = {
       navigator.serviceWorker.register('sw.js').catch(error => console.warn('Copia offline non attivata:', error));
     });
   }
+
+  // Piccoli strumenti condivisi con memories.js (stesso stile di avvisi e icone).
+  window.PARIS_APP = { toast, icon, escapeHTML };
 })();
 
 </script>
+<script src="vendor/supabase.js"></script>
+<script src="memories-api.js"></script>
+<script src="memories.js"></script>
 </body>
 </html>

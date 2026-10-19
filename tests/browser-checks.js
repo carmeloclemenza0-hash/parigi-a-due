@@ -9,8 +9,42 @@ async (page) => {
   const errors = [];
   const check = (name, pass, detail = '') => results.push(`${pass ? 'OK  ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`);
 
-  async function open(options = {}, { iso, hash = '', savedDay } = {}) {
+  // Versione finta di Supabase per i test: stessa forma di memories-api.js, dati in memoria.
+  // Password valida per entrambi: "password-giusta". Opzioni: signedIn ('Carmelo'|'Adiel'), seed, failList.
+  const fakeMemoriesApi = ({ signedIn = null, seed = [], failList = false } = {}) => {
+    const people = { 'carmeloclemenza0@gmail.com': { id: 'u-carmelo', name: 'Carmelo' }, 'adiel.alba6@gmail.com': { id: 'u-adiel', name: 'Adiel' } };
+    const fake = window.__fake = { memories: seed.map(m => ({ ...m })), uploads: [], newPassword: null };
+    let user = signedIn ? Object.values(people).find(p => p.name === signedIn) : null;
+    const needNetwork = () => { if (!navigator.onLine) throw new Error('Failed to fetch'); };
+    const pixel = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+    window.PARIS_MEMORIES_API = {
+      async currentUser() { return user; },
+      async signIn(email, password) { needNetwork(); const p = people[email]; if (!p || password !== 'password-giusta') throw new Error('Email o password non corrette.'); user = p; return p; },
+      async signOut() { user = null; },
+      async changePassword(password) { needNetwork(); fake.newPassword = password; },
+      async list() { needNetwork(); if (failList) throw new Error('Servizio non raggiungibile.'); return fake.memories.map(m => ({ ...m })); },
+      async add({ stopId, note, photos }) {
+        needNetwork();
+        const paths = [];
+        for (const blob of photos) {
+          const bitmap = await createImageBitmap(blob);
+          fake.uploads.push({ type: blob.type, width: bitmap.width, height: bitmap.height });
+          paths.push(`${stopId}/foto-${fake.uploads.length}.jpg`);
+        }
+        const memory = { id: `m${Date.now()}${fake.memories.length}`, stopId, authorId: user.id, authorName: user.name, note, photos: paths, createdAt: new Date().toISOString() };
+        fake.memories.push(memory);
+        return { ...memory };
+      },
+      async updateNote(id, note) { needNetwork(); const m = fake.memories.find(x => x.id === id); m.note = note; return { ...m }; },
+      async remove(memory) { needNetwork(); fake.memories = fake.memories.filter(m => m.id !== memory.id); },
+      async photoUrls(paths) { return Object.fromEntries(paths.map(path => [path, pixel])); }
+    };
+  };
+
+  async function open(options = {}, { iso, hash = '', savedDay, memories } = {}) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', ...options });
+    // Nessun test parla col database vero: ogni contesto riceve l'API finta.
+    await ctx.addInitScript(fakeMemoriesApi, memories || {});
     if (savedDay) await ctx.addInitScript(day => {
       if (!localStorage.getItem('parigi-a-due-2026-v1')) localStorage.setItem('parigi-a-due-2026-v1', JSON.stringify({ version: 1, selectedDay: day, done: {}, notes: {}, tripNote: '' }));
     }, savedDay);
@@ -271,6 +305,30 @@ async (page) => {
       return [...new Set(out)];
     });
     check(`contrasto ${scheme === 'light' ? 'giorno' : 'notte'}: testi leggibili (AA)`, bad.length === 0, bad.slice(0, 12).join(' · ') + (bad.length > 12 ? ` … +${bad.length - 12}` : ''));
+    await ctx.close();
+  }
+
+  // 10. Ricordi: logica pura
+  {
+    const { ctx, p } = await open();
+    const r = await p.evaluate(() => {
+      const M = window.ParisMemories;
+      const sample = [
+        { id: 'a', stopId: 'd1-eiffel', createdAt: '2026-11-05T15:00:00Z' },
+        { id: 'b', stopId: 'd1-eiffel', createdAt: '2026-11-05T14:00:00Z' },
+        { id: 'c', stopId: window.PARIS_TRIP.days[2].groups[0].items[0].id, createdAt: '2026-11-07T09:00:00Z' }
+      ];
+      return {
+        big: M.fitWithin(4032, 3024), tall: M.fitWithin(1000, 3000), small: M.fitWithin(800, 600),
+        counts: M.countByStop(sample),
+        days: M.groupByDay(sample).map(g => [g.day.id, g.memories.map(m => m.id).join('')])
+      };
+    });
+    check('ricordi: foto grande ridotta a 1600 px', r.big.width === 1600 && r.big.height === 1200, JSON.stringify(r.big));
+    check('ricordi: foto verticale ridotta in altezza', r.tall.width === 533 && r.tall.height === 1600, JSON.stringify(r.tall));
+    check('ricordi: foto piccola non ingrandita', r.small.width === 800 && r.small.height === 600);
+    check('ricordi: conteggio per tappa', r.counts['d1-eiffel'] === 2, JSON.stringify(r.counts));
+    check('ricordi: diario per giorno, in ordine di tempo', JSON.stringify(r.days) === JSON.stringify([[1, 'ba'], [3, 'c']]), JSON.stringify(r.days));
     await ctx.close();
   }
 
