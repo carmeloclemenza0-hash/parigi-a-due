@@ -225,8 +225,8 @@ async (page) => {
     p.on('pageerror', e => errors.push(e.message));
     await p.goto(BASE);
     await p.evaluate(() => navigator.serviceWorker.ready);
-    const cache = await p.evaluate(async () => ({ keys: await caches.keys(), files: (await (await caches.open('parigi-v3')).keys()).length }));
-    check('cache: solo parigi-v3 con 12 file', cache.keys.join() === 'parigi-v3' && cache.files === 12, JSON.stringify(cache));
+    const cache = await p.evaluate(async () => ({ keys: await caches.keys(), files: (await (await caches.open('parigi-v4')).keys()).length }));
+    check('cache: solo parigi-v4 con 15 file', cache.keys.join() === 'parigi-v4' && cache.files === 15, JSON.stringify(cache));
     // Il server locale non comprime: qui si sommano le risorse (foto, font, icone, già compresse di loro);
     // il peso di index.html compresso (come lo serve GitHub Pages) si misura a parte, con gzip.
     const weight = await p.evaluate(() => {
@@ -273,12 +273,8 @@ async (page) => {
     await ctx.close();
   }
 
-  // 9. Contrasto dei testi (WCAG AA) di giorno e di notte, a misura di telefono.
-  // Animazioni ridotte, così niente è a metà dissolvenza; le tappe già fatte sono sbiadite di proposito.
-  for (const scheme of ['light', 'dark']) {
-    const { ctx, p } = await open({ colorScheme: scheme, reducedMotion: 'reduce', isMobile: true, hasTouch: true });
-    await p.waitForTimeout(500);
-    const bad = await p.evaluate(() => {
+  // Testi con contrasto sotto AA. `root`: dove cercare (di default tutta la pagina).
+  const contrastIssues = (p, root = 'body') => p.evaluate(root => {
       const parse = c => { const m = c.match(/[\d.]+/g).map(Number); return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
       const lum = ({ r, g, b }) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
       const over = (top, bottom) => ({ r: top.r * top.a + bottom.r * (1 - top.a), g: top.g * top.a + bottom.g * (1 - top.a), b: top.b * top.a + bottom.b * (1 - top.a), a: 1 });
@@ -293,7 +289,7 @@ async (page) => {
         return layers.reverse().reduce((acc, layer) => over(layer, acc), { r: 255, g: 255, b: 255, a: 1 });
       };
       const out = [];
-      for (const el of document.querySelectorAll('body *')) {
+      for (const el of document.querySelectorAll(root === 'body' ? 'body *' : `${root} *`)) {
         const b = el.getBoundingClientRect(); const cs = getComputedStyle(el);
         if (!b.width || !b.height || cs.visibility === 'hidden' || el.closest('[hidden], .is-done, .print-only, .skip-link, .static-itinerary, .round-stamp, .install-card')) continue;
         if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim().length > 1)) continue;
@@ -306,7 +302,14 @@ async (page) => {
         if (ratio < need) out.push(`${(typeof el.className === 'string' && el.className.split(' ')[0]) || el.tagName} "${el.textContent.trim().slice(0, 18)}" ${ratio.toFixed(2)}`);
       }
       return [...new Set(out)];
-    });
+  }, root);
+
+  // 9. Contrasto dei testi (WCAG AA) di giorno e di notte, a misura di telefono.
+  // Animazioni ridotte, così niente è a metà dissolvenza; le tappe già fatte sono sbiadite di proposito.
+  for (const scheme of ['light', 'dark']) {
+    const { ctx, p } = await open({ colorScheme: scheme, reducedMotion: 'reduce', isMobile: true, hasTouch: true });
+    await p.waitForTimeout(500);
+    const bad = await contrastIssues(p);
     check(`contrasto ${scheme === 'light' ? 'giorno' : 'notte'}: testi leggibili (AA)`, bad.length === 0, bad.slice(0, 12).join(' · ') + (bad.length > 12 ? ` … +${bad.length - 12}` : ''));
     await ctx.close();
   }
@@ -362,12 +365,12 @@ async (page) => {
     await ctx.close();
   }
 
-  // 12. Ricordi: pulsante e pannello
-  {
   const seed = [
     { id: 'm-c', stopId: 'd1-eiffel', authorId: 'u-carmelo', authorName: 'Carmelo', note: 'La prima volta insieme qui <img src=x onerror="window.__xss=1">', photos: ['d1-eiffel/a.jpg'], createdAt: '2026-11-05T15:10:00Z' },
     { id: 'm-a', stopId: 'd1-eiffel', authorId: 'u-adiel', authorName: 'Adiel', note: 'Che freddo, che bello', photos: [], createdAt: '2026-11-05T15:20:00Z' }
   ];
+
+  // 12. Ricordi: pulsante e pannello
   {
     const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z' });
     check('pannello: senza login la tappa invita ad accedere', (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Accedi per i ricordi');
@@ -384,7 +387,7 @@ async (page) => {
     check('pannello: si apre con il titolo della tappa', (await p.locator('#sheet-title').textContent()) === 'Torre Eiffel');
     check('pannello: mostra i due ricordi', await p.locator('#memory-list .memory-card').count() === 2);
     check('pannello: la nota è testo, non codice', !(await p.evaluate(() => window.__xss)) && (await p.locator('#memory-list .memory-note').first().textContent()).includes('<img'));
-    check('pannello: Adiel può cancellare solo il suo', await p.locator('[data-memory="m-a"] [data-delete]').count() === 1 && await p.locator('[data-memory="m-c"] [data-delete]').count() === 0);
+    check('pannello: Adiel può cancellare solo il suo', await p.locator('#memory-list [data-memory="m-a"] [data-delete]').count() === 1 && await p.locator('#memory-list [data-memory="m-c"] [data-delete]').count() === 0);
 
     // Nuovo ricordo con una foto grande (3000×2000) creata nel browser.
     await p.fill('#memory-note', 'Il lucchetto sulla Passerelle');
@@ -407,18 +410,18 @@ async (page) => {
     check('pannello: modulo svuotato dopo il salvataggio', (await p.inputValue('#memory-note')) === '' && await p.locator('#memory-previews img').count() === 0);
 
     // Modifica della propria nota.
-    await p.click('[data-memory="m-a"] [data-edit]');
-    await p.fill('[data-memory="m-a"] .memory-edit', 'Che freddo, che bellissimo');
-    await p.click('[data-memory="m-a"] [data-save-edit]');
+    await p.click('#memory-list [data-memory="m-a"] [data-edit]');
+    await p.fill('#memory-list [data-memory="m-a"] .memory-edit', 'Che freddo, che bellissimo');
+    await p.click('#memory-list [data-memory="m-a"] [data-save-edit]');
     await p.waitForTimeout(200);
-    check('pannello: nota modificata', (await p.locator('[data-memory="m-a"] .memory-note').textContent()) === 'Che freddo, che bellissimo');
+    check('pannello: nota modificata', (await p.locator('#memory-list [data-memory="m-a"] .memory-note').textContent()) === 'Che freddo, che bellissimo');
 
     // Cancellazione con conferma dentro la pagina.
-    await p.click('[data-memory="m-a"] [data-delete]');
-    check('pannello: chiede conferma prima di cancellare', await p.locator('[data-memory="m-a"] [data-confirm-delete]').isVisible());
-    await p.click('[data-memory="m-a"] [data-confirm-delete]');
+    await p.click('#memory-list [data-memory="m-a"] [data-delete]');
+    check('pannello: chiede conferma prima di cancellare', await p.locator('#memory-list [data-memory="m-a"] [data-confirm-delete]').isVisible());
+    await p.click('#memory-list [data-memory="m-a"] [data-confirm-delete]');
     await p.waitForTimeout(200);
-    check('pannello: ricordo cancellato', await p.locator('[data-memory="m-a"]').count() === 0 && (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Ricordi · 2');
+    check('pannello: ricordo cancellato', await p.locator('#memory-list [data-memory="m-a"]').count() === 0 && (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Ricordi · 2');
 
     // Senza rete: la bozza resta e si può riprovare.
     await ctx.setOffline(true);
@@ -442,6 +445,28 @@ async (page) => {
     check('offline: avviso se il servizio non risponde', (await p.locator('#toast').textContent()).startsWith('Ricordi non aggiornati'));
     await ctx.close();
   }
+
+  // 13. Diario e contrasto dei ricordi
+  {
+    const { ctx, p } = await open();
+    check('diario: senza login invita ad accedere', (await p.locator('#diary').textContent()).includes('solo per noi due'));
+    await ctx.close();
+  }
+  {
+    const { ctx, p } = await open({}, { memories: { signedIn: 'Carmelo' } });
+    await p.waitForTimeout(200);
+    check('diario: vuoto prima del viaggio', (await p.locator('#diary').textContent()).includes('Qui finiranno i vostri ricordi'));
+    await ctx.close();
+  }
+  for (const scheme of ['light', 'dark']) {
+    const { ctx, p } = await open({ colorScheme: scheme, reducedMotion: 'reduce', isMobile: true, hasTouch: true }, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Carmelo', seed } });
+    await p.waitForTimeout(300);
+    const diary = await p.locator('#diary').textContent();
+    check(`diario: ricordi raggruppati per giorno (${scheme})`, diary.includes('Giorno 1') && diary.includes('Torre Eiffel') && diary.includes('Che freddo'));
+    check(`contrasto ${scheme === 'light' ? 'giorno' : 'notte'}: diario e pulsanti`, (await contrastIssues(p)).length === 0, (await contrastIssues(p)).slice(0, 8).join(' · '));
+    await p.click('[data-memories="d1-eiffel"]');
+    check(`contrasto ${scheme === 'light' ? 'giorno' : 'notte'}: pannello dei ricordi`, (await contrastIssues(p, '#memory-sheet')).length === 0, (await contrastIssues(p, '#memory-sheet')).slice(0, 8).join(' · '));
+    await ctx.close();
   }
 
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));

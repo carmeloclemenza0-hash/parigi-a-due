@@ -2,11 +2,14 @@
  * Strategia "prima la rete": con connessione arriva sempre la versione aggiornata;
  * se la rete manca o è troppo lenta (metro, roaming) si usa la copia salvata.
  * Cambiare CACHE_VERSION quando si aggiunge o rinomina un file in PRECACHE. */
-const CACHE_VERSION = 'parigi-v3';
+const CACHE_VERSION = 'parigi-v4';
 const PRECACHE = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './vendor/supabase.js',
+  './memories-api.js',
+  './memories.js',
   './icons/icon.svg',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',

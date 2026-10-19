@@ -322,10 +322,22 @@
     } else if (event.target.closest('[data-login]')) openLogin();
   });
 
+  // --- Diario: tutti i ricordi, giorno per giorno ---
+  function renderDiary() {
+    const box = $('diary');
+    if (unavailable) { box.innerHTML = `<p class="diary-empty">${esc(unavailable)}</p>`; return; }
+    if (!user) { box.innerHTML = '<p class="diary-empty">Il diario è solo per noi due.</p><button type="button" class="button secondary" data-login>Accedi</button>'; return; }
+    const groups = groupByDay(memories);
+    box.innerHTML = groups.length
+      ? groups.map(({ day, memories: list }) => `<section class="diary-day"><h3>Giorno ${day.id} · ${esc(day.weekday)} ${esc(day.shortDate)}</h3>${list.map(m => `<p class="diary-stop">${esc(stops.get(m.stopId).item.title)}</p>${memoryCard(m, false)}`).join('')}</section>`).join('')
+      : '<p class="diary-empty">Qui finiranno i vostri ricordi: tocca “Aggiungi un ricordo” sotto una tappa.</p>';
+  }
+
   function renderAll() {
     renderAccount();
     renderButtons();
     renderSheet();
+    renderDiary();
   }
 
   window.addEventListener('online', () => { if (user) refresh(); });

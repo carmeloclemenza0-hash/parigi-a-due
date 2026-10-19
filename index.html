@@ -63,7 +63,7 @@ html:not(.js) .needs-js,html:not(.js) .day-nav:not(.static-day-nav),html:not(.js
 @media screen and (max-width:600px){.static-day{scroll-margin-top:110px}.static-tips{padding:18px}}
 @media print{html:not(.js) .itinerary-section{display:block!important}html:not(.js) .static-day-nav{display:none!important}.static-day{break-before:page}.static-day:first-of-type{break-before:auto}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important;animation:none!important}}
-@media print{@page{size:A4;margin:16mm}body{background:#fff;color:#000;font:10pt/1.5 Arial,sans-serif}.site-header,.hero,.itinerary-section,.remember-section,.notes-section,.site-footer,.toast,dialog,.skip-link,noscript{display:none!important}.print-only{display:block!important}.print-cover{border-bottom:2px solid #000;padding-bottom:14px;margin-bottom:25px}.print-cover h1{font:36pt Georgia,serif;letter-spacing:-1px;margin:0 0 10px}.print-cover p{margin:3px 0;font-size:10pt}.print-day{break-before:page}.print-day:first-of-type{break-before:auto}.print-day h2{font:25pt Georgia,serif;margin:0 0 8px}.print-day h3{font:16pt Georgia,serif;margin:17px 0 8px}.print-date{font-size:9pt;letter-spacing:1px}.print-stop{margin:0 0 12px;break-inside:avoid;padding-left:16px;position:relative}.print-stop::before{content:'□';position:absolute;left:0}.print-stop.done::before{content:'✓'}.print-stop strong{font-size:10pt}.print-stop p{margin:3px 0}.print-tip{border-left:2px solid #000;padding-left:12px;margin-top:10px;break-inside:avoid}.print-note{white-space:pre-wrap;overflow-wrap:anywhere;border-top:1px solid #000;padding-top:10px;margin-top:15px}.print-trip-note{break-before:page}.print-trip-note h2{font-size:24pt}.print-trip-note p{white-space:pre-wrap}.print-sources{font-size:8pt;margin-top:15px}.print-sources a{display:block;color:#000;overflow-wrap:anywhere;margin-top:4px}.print-sources a::after{content:' — ' attr(href)}h1,h2,h3{color:#000}a{color:#000}}
+@media print{@page{size:A4;margin:16mm}body{background:#fff;color:#000;font:10pt/1.5 Arial,sans-serif}.site-header,.hero,.itinerary-section,.remember-section,.notes-section,.diary-section,.site-footer,.toast,dialog,.skip-link,noscript{display:none!important}.print-only{display:block!important}.print-cover{border-bottom:2px solid #000;padding-bottom:14px;margin-bottom:25px}.print-cover h1{font:36pt Georgia,serif;letter-spacing:-1px;margin:0 0 10px}.print-cover p{margin:3px 0;font-size:10pt}.print-day{break-before:page}.print-day:first-of-type{break-before:auto}.print-day h2{font:25pt Georgia,serif;margin:0 0 8px}.print-day h3{font:16pt Georgia,serif;margin:17px 0 8px}.print-date{font-size:9pt;letter-spacing:1px}.print-stop{margin:0 0 12px;break-inside:avoid;padding-left:16px;position:relative}.print-stop::before{content:'□';position:absolute;left:0}.print-stop.done::before{content:'✓'}.print-stop strong{font-size:10pt}.print-stop p{margin:3px 0}.print-tip{border-left:2px solid #000;padding-left:12px;margin-top:10px;break-inside:avoid}.print-note{white-space:pre-wrap;overflow-wrap:anywhere;border-top:1px solid #000;padding-top:10px;margin-top:15px}.print-trip-note{break-before:page}.print-trip-note h2{font-size:24pt}.print-trip-note p{white-space:pre-wrap}.print-sources{font-size:8pt;margin-top:15px}.print-sources a{display:block;color:#000;overflow-wrap:anywhere;margin-top:4px}.print-sources a::after{content:' — ' attr(href)}h1,h2,h3{color:#000}a{color:#000}}
 
 </style>
   <style>
@@ -163,7 +163,7 @@ textarea{max-width:100%}
   dialog h2{font-size:28px}dialog p{font-size:14px}
   /* Leggibilità per strada, anche al sole: nessun testo utile sotto gli 11px. */
   .brand small{font-size:9px;letter-spacing:.1em}
-  .hero .eyebrow,.section-heading .eyebrow,.day-heading>.eyebrow,.notes-intro .eyebrow{font-size:11px}
+  .hero .eyebrow,.section-heading .eyebrow,.day-heading>.eyebrow,.notes-intro .eyebrow,.diary-section .eyebrow{font-size:11px}
   .date-label{font-size:12px}
   .tab-top{font-size:11px}.tab-date{font-size:12px}
   .group-heading h4{font-size:11px}
@@ -472,6 +472,13 @@ html[data-theme=dark] .account-toggle.is-signed-in{color:#f2cf8a}
 .photo-viewer img{display:block;max-width:96vw;max-height:88vh;border-radius:6px}
 .photo-viewer .sheet-close{position:absolute;top:8px;right:8px}
 @media (prefers-reduced-motion:no-preference){.sheet[open]{animation:sheet-up .25s ease-out}@keyframes sheet-up{from{transform:translateY(40px);opacity:0}}}
+/* Ricordi: diario */
+.diary-section{padding-block:10px 50px}
+.diary-section h2{font-size:33px;margin:0 0 22px}
+.diary{display:grid;gap:28px;max-width:640px}
+.diary-day h3{font-size:22px;margin:0 0 12px;color:var(--green)}
+.diary-day .memory-card{margin-bottom:14px}
+.diary-stop{margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -599,6 +606,7 @@ html[data-theme=dark] .account-toggle.is-signed-in{color:#f2cf8a}
     </div></section>
 
     <section class="notes-section wrap" id="appunti" aria-labelledby="notes-title"><div class="notes-intro"><p class="eyebrow">LE COSE DA NON DIMENTICARE</p><h2 id="notes-title">Uno spazio per noi.</h2><p>Indirizzi, prenotazioni, un posto scoperto per caso. Il viaggio prende forma anche qui.</p><button class="text-button" id="export-button"><svg class="icon"><use href="#i-download"/></svg>Esporta spunte e appunti</button><button class="text-button" id="import-button"><svg class="icon"><use href="#i-book"/></svg>Importa un salvataggio</button><input type="file" id="import-file" accept=".json,application/json" hidden></div><div class="notes-field"><label for="trip-note">Il nostro taccuino</label><textarea id="trip-note" rows="8" maxlength="20000" placeholder="Hotel e indirizzo, orari dei voli, prenotazioni…"></textarea><p id="trip-note-status" role="status">Appunti salvati automaticamente su questo dispositivo.</p></div></section>
+    <section class="diary-section wrap needs-js" id="diario" aria-labelledby="diary-title"><p class="eyebrow">IL NOSTRO DIARIO</p><h2 id="diary-title">Parigi, scritta da noi.</h2><div id="diary" class="diary"></div></section>
     <section id="print-itinerary" class="print-only" aria-label="Itinerario completo per la stampa"></section>
   </main>
   <footer class="site-footer wrap">
@@ -628,7 +636,7 @@ html[data-theme=dark] .account-toggle.is-signed-in{color:#f2cf8a}
   <dialog id="photo-viewer" class="photo-viewer" aria-label="Foto"><img id="photo-viewer-img" alt=""><button type="button" class="sheet-close" data-close aria-label="Chiudi">×</button></dialog>
 <script>
 /* Itinerario trascritto dalle due foto e aggiornato con le modifiche richieste.
- * I tempi senza prenotazione sono indicativi. Nessun dato è inviato online. */
+ * I tempi senza prenotazione sono indicativi. Spunte e appunti restano sul dispositivo; solo i ricordi condivisi passano da Supabase (memories-api.js). */
 window.PARIS_TRIP = {
   title: 'Parigi, a due',
   dates: '5 — 9 novembre 2026',
