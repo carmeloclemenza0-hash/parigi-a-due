@@ -362,6 +362,88 @@ async (page) => {
     await ctx.close();
   }
 
+  // 12. Ricordi: pulsante e pannello
+  {
+  const seed = [
+    { id: 'm-c', stopId: 'd1-eiffel', authorId: 'u-carmelo', authorName: 'Carmelo', note: 'La prima volta insieme qui <img src=x onerror="window.__xss=1">', photos: ['d1-eiffel/a.jpg'], createdAt: '2026-11-05T15:10:00Z' },
+    { id: 'm-a', stopId: 'd1-eiffel', authorId: 'u-adiel', authorName: 'Adiel', note: 'Che freddo, che bello', photos: [], createdAt: '2026-11-05T15:20:00Z' }
+  ];
+  {
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z' });
+    check('pannello: senza login la tappa invita ad accedere', (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Accedi per i ricordi');
+    await p.click('[data-memories="d1-eiffel"]');
+    check('pannello: senza login apre il riquadro Accedi', await p.locator('#login-dialog').evaluate(d => d.open));
+    await ctx.close();
+  }
+  {
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Adiel', seed } });
+    await p.waitForTimeout(200);
+    check('pannello: contatore sulla tappa', (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Ricordi · 2');
+    check('pannello: tappa senza ricordi', (await p.locator('[data-memories="d1-iena"]').textContent()) === 'Aggiungi un ricordo');
+    await p.click('[data-memories="d1-eiffel"]');
+    check('pannello: si apre con il titolo della tappa', (await p.locator('#sheet-title').textContent()) === 'Torre Eiffel');
+    check('pannello: mostra i due ricordi', await p.locator('#memory-list .memory-card').count() === 2);
+    check('pannello: la nota è testo, non codice', !(await p.evaluate(() => window.__xss)) && (await p.locator('#memory-list .memory-note').first().textContent()).includes('<img'));
+    check('pannello: Adiel può cancellare solo il suo', await p.locator('[data-memory="m-a"] [data-delete]').count() === 1 && await p.locator('[data-memory="m-c"] [data-delete]').count() === 0);
+
+    // Nuovo ricordo con una foto grande (3000×2000) creata nel browser.
+    await p.fill('#memory-note', 'Il lucchetto sulla Passerelle');
+    await p.evaluate(async () => {
+      const canvas = Object.assign(document.createElement('canvas'), { width: 3000, height: 2000 });
+      canvas.getContext('2d').fillRect(0, 0, 3000, 2000);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      const input = document.getElementById('memory-photos');
+      const files = new DataTransfer(); files.items.add(new File([blob], 'grande.png', { type: 'image/png' }));
+      input.files = files.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await p.waitForTimeout(500);
+    check('pannello: anteprima della foto scelta', await p.locator('#memory-previews img').count() === 1);
+    await p.click('#memory-save');
+    await p.waitForTimeout(500);
+    const upload = await p.evaluate(() => window.__fake.uploads[0]);
+    check('pannello: foto rimpicciolita a 1600 px in JPEG', upload && upload.width === 1600 && upload.height === 1067 && upload.type === 'image/jpeg', JSON.stringify(upload));
+    check('pannello: ricordo salvato e contatore aggiornato', (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Ricordi · 3' && (await p.locator('#memory-status').textContent()) === 'Ricordo salvato.');
+    check('pannello: modulo svuotato dopo il salvataggio', (await p.inputValue('#memory-note')) === '' && await p.locator('#memory-previews img').count() === 0);
+
+    // Modifica della propria nota.
+    await p.click('[data-memory="m-a"] [data-edit]');
+    await p.fill('[data-memory="m-a"] .memory-edit', 'Che freddo, che bellissimo');
+    await p.click('[data-memory="m-a"] [data-save-edit]');
+    await p.waitForTimeout(200);
+    check('pannello: nota modificata', (await p.locator('[data-memory="m-a"] .memory-note').textContent()) === 'Che freddo, che bellissimo');
+
+    // Cancellazione con conferma dentro la pagina.
+    await p.click('[data-memory="m-a"] [data-delete]');
+    check('pannello: chiede conferma prima di cancellare', await p.locator('[data-memory="m-a"] [data-confirm-delete]').isVisible());
+    await p.click('[data-memory="m-a"] [data-confirm-delete]');
+    await p.waitForTimeout(200);
+    check('pannello: ricordo cancellato', await p.locator('[data-memory="m-a"]').count() === 0 && (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Ricordi · 2');
+
+    // Senza rete: la bozza resta e si può riprovare.
+    await ctx.setOffline(true);
+    await p.fill('#memory-note', 'Scritto in metro');
+    await p.click('#memory-save');
+    await p.waitForTimeout(200);
+    check('offline: bozza conservata con messaggio chiaro', (await p.inputValue('#memory-note')) === 'Scritto in metro' && (await p.locator('#memory-status').textContent()).startsWith('Nessuna rete') && (await p.locator('#memory-save').textContent()) === 'Riprova');
+    await ctx.setOffline(false);
+    await p.click('#memory-save');
+    await p.waitForTimeout(300);
+    check('offline: “Riprova” salva quando torna la rete', (await p.locator('#memory-status').textContent()) === 'Ricordo salvato.' && (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Ricordi · 3');
+    await ctx.close();
+  }
+  {
+    // Rete che non risponde: restano i ricordi salvati sul telefono, con un avviso.
+    const { ctx, p } = await open({}, { iso: '2026-11-05T14:00:00Z', memories: { signedIn: 'Carmelo', seed, failList: true } });
+    await p.evaluate(s => localStorage.setItem('parigi-a-due-2026-v1-memories', JSON.stringify(s)), seed);
+    await p.reload();
+    await p.waitForTimeout(300);
+    check('offline: si vedono i ricordi salvati', (await p.locator('[data-memories="d1-eiffel"]').textContent()) === 'Ricordi · 2');
+    check('offline: avviso se il servizio non risponde', (await p.locator('#toast').textContent()).startsWith('Ricordi non aggiornati'));
+    await ctx.close();
+  }
+  }
+
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));
   const failed = results.filter(r => r.startsWith('FAIL')).length;
   return `${results.join('\n')}\n\n${results.length - failed}/${results.length} controlli superati`;

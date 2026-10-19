@@ -152,8 +152,180 @@
     renderAll();
   }
 
+  // --- Pulsanti sotto le tappe ---
+  function buttonLabel(stopId, counts) {
+    if (unavailable) return 'Ricordi non disponibili';
+    if (!user) return 'Accedi per i ricordi';
+    return counts[stopId] ? `Ricordi · ${counts[stopId]}` : 'Aggiungi un ricordo';
+  }
+  function renderButtons() {
+    const counts = countByStop(memories);
+    for (const button of document.querySelectorAll('[data-memories]')) {
+      button.textContent = buttonLabel(button.dataset.memories, counts);
+      button.classList.toggle('has-memories', Boolean(user && counts[button.dataset.memories]));
+      button.disabled = Boolean(unavailable);
+    }
+  }
+  document.addEventListener('timeline:rendered', renderButtons);
+
+  // --- Post-it di un ricordo (pannello e diario) ---
+  const timeFormat = new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Paris', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  function memoryCard(memory, editable) {
+    const photos = memory.photos.map(path => urls[path]
+      ? `<button type="button" class="memory-photo" data-photo="${esc(path)}"><img src="${esc(urls[path])}" alt="Foto di ${esc(memory.authorName)}" loading="lazy"></button>`
+      : '<span class="memory-photo is-missing">Foto visibile con la rete</span>').join('');
+    const own = editable && user && memory.authorId === user.id;
+    return `<article class="memory-card" data-memory="${esc(memory.id)}">${memory.note ? `<p class="memory-note">${esc(memory.note)}</p>` : ''}${photos ? `<div class="memory-photos">${photos}</div>` : ''}<footer class="memory-meta"><span>${esc(memory.authorName)} · ${esc(timeFormat.format(new Date(memory.createdAt)))}</span>${own ? '<span class="memory-actions"><button type="button" class="text-button" data-edit>Modifica</button><button type="button" class="text-button" data-delete>Cancella</button></span>' : ''}</footer></article>`;
+  }
+
+  // --- Pannello dal basso ---
+  let openStop = null;
+  const drafts = {};          // bozze per tappa: { note, photos: Blob[] } — restano finché la pagina è aperta
+  let previewUrls = [];
+
+  function setStatus(message, isError = false) {
+    $('memory-status').textContent = message;
+    $('memory-status').classList.toggle('is-error', isError);
+  }
+  function openSheet(stopId) {
+    if (!user) { openLogin(); return; }
+    openStop = stopId;
+    drafts[stopId] ||= { note: '', photos: [] };
+    $('sheet-title').textContent = stops.get(stopId).item.title;
+    $('memory-note').value = drafts[stopId].note;
+    $('memory-save').textContent = 'Salva';
+    setStatus('');
+    renderSheet();
+    $('memory-sheet').showModal();
+  }
+  function renderSheet() {
+    if (!openStop) return;
+    const list = memories.filter(m => m.stopId === openStop);
+    $('memory-list').innerHTML = list.length ? list.map(m => memoryCard(m, true)).join('') : '<p class="memory-empty">Ancora nessun ricordo qui.</p>';
+    renderPreviews();
+  }
+  function renderPreviews() {
+    previewUrls.forEach(url => URL.revokeObjectURL(url));
+    previewUrls = (drafts[openStop]?.photos || []).map(blob => URL.createObjectURL(blob));
+    $('memory-previews').innerHTML = previewUrls.map((url, i) => `<span class="memory-preview"><img src="${url}" alt="Foto ${i + 1} da salvare"><button type="button" data-unpick="${i}" aria-label="Togli la foto ${i + 1}">×</button></span>`).join('');
+  }
+  $('memory-sheet').addEventListener('close', () => {
+    if (openStop) drafts[openStop].note = $('memory-note').value;
+    openStop = null;
+  });
+
+  // Foto rimpicciolita nel browser: lato lungo 1600 px, JPEG.
+  async function resizePhoto(file) {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const size = fitWithin(bitmap.width, bitmap.height);
+    const canvas = Object.assign(document.createElement('canvas'), size);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, size.width, size.height);
+    bitmap.close();
+    return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Foto non leggibile.')), 'image/jpeg', JPEG_QUALITY));
+  }
+
+  $('memory-photos').addEventListener('change', async event => {
+    const files = [...event.target.files];
+    event.target.value = '';
+    const draft = drafts[openStop];
+    const room = Math.max(0, MAX_PHOTOS - draft.photos.length);
+    if (files.length > room) setStatus(`Al massimo ${MAX_PHOTOS} foto per ricordo: ne ho tenute ${room}.`, true);
+    for (const file of files.slice(0, room)) {
+      try { draft.photos.push(await resizePhoto(file)); }
+      catch (error) { setStatus(`“${file.name}” non si riesce a leggere come foto.`, true); }
+    }
+    renderPreviews();
+  });
+
+  $('memory-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const stopId = openStop;
+    const draft = drafts[stopId];
+    draft.note = $('memory-note').value;
+    const note = draft.note.trim().slice(0, MAX_NOTE);
+    if (!note && !draft.photos.length) { setStatus('Scrivi qualcosa o aggiungi una foto.', true); return; }
+    if (!navigator.onLine) {
+      setStatus('Nessuna rete: il ricordo è rimasto qui. Tocca “Riprova” quando torni online.', true);
+      $('memory-save').textContent = 'Riprova';
+      return;
+    }
+    $('memory-save').disabled = true;
+    $('memory-save').textContent = 'Salvo…';
+    let saved;
+    try {
+      saved = await api.add({ stopId, note, photos: draft.photos });
+    } catch (error) {
+      setStatus(`Non salvato: ${error.message} Il ricordo è rimasto qui: tocca “Riprova”.`, true);
+      $('memory-save').textContent = 'Riprova';
+      return;
+    } finally {
+      $('memory-save').disabled = false;
+    }
+    memories.push(saved);
+    writeCache(memories);
+    drafts[stopId] = { note: '', photos: [] };
+    $('memory-note').value = '';
+    $('memory-save').textContent = 'Salva';
+    try { Object.assign(urls, await api.photoUrls(saved.photos)); }
+    catch (error) { toast(`Ricordo salvato, ma le foto si vedranno al prossimo aggiornamento: ${error.message}`); }
+    renderAll();
+    setStatus('Ricordo salvato.');
+  });
+
+  // Modifica e cancellazione: solo i propri ricordi, con conferma dentro il post-it.
+  $('memory-list').addEventListener('click', async event => {
+    const card = event.target.closest('[data-memory]');
+    const memory = card && memories.find(m => m.id === card.dataset.memory);
+    if (!memory) return;
+    if (event.target.closest('[data-delete]')) {
+      card.querySelector('.memory-meta').innerHTML = '<span>Cancellare questo ricordo?</span><span class="memory-actions"><button type="button" class="text-button" data-cancel>No</button><button type="button" class="text-button danger" data-confirm-delete>Sì, cancella</button></span>';
+    } else if (event.target.closest('[data-confirm-delete]')) {
+      try {
+        await api.remove(memory);
+        memories = memories.filter(m => m.id !== memory.id);
+        writeCache(memories);
+        renderAll();
+        setStatus('Ricordo cancellato.');
+      } catch (error) { setStatus(`Non cancellato: ${error.message}`, true); }
+    } else if (event.target.closest('[data-edit]')) {
+      card.innerHTML = `<textarea class="memory-edit" maxlength="${MAX_NOTE}" aria-label="Modifica la nota">${esc(memory.note)}</textarea><footer class="memory-meta"><span></span><span class="memory-actions"><button type="button" class="text-button" data-cancel>Annulla</button><button type="button" class="text-button danger" data-save-edit>Salva</button></span></footer>`;
+      card.querySelector('textarea').focus();
+    } else if (event.target.closest('[data-save-edit]')) {
+      const note = card.querySelector('textarea').value.trim().slice(0, MAX_NOTE);
+      if (!note && !memory.photos.length) { setStatus('Un ricordo senza foto ha bisogno di una nota.', true); return; }
+      try {
+        const updated = await api.updateNote(memory.id, note);
+        memories = memories.map(m => m.id === memory.id ? updated : m);
+        writeCache(memories);
+        renderAll();
+        setStatus('Nota modificata.');
+      } catch (error) { setStatus(`Modifica non salvata: ${error.message}`, true); }
+    } else if (event.target.closest('[data-cancel]')) {
+      renderSheet();
+    }
+  });
+  $('memory-previews').addEventListener('click', event => {
+    const unpick = event.target.closest('[data-unpick]');
+    if (!unpick) return;
+    drafts[openStop].photos.splice(Number(unpick.dataset.unpick), 1);
+    renderPreviews();
+  });
+
+  // Pulsanti sparsi nella pagina: tappa, foto da ingrandire, "Accedi" del diario.
+  document.addEventListener('click', event => {
+    const stopButton = event.target.closest('[data-memories]');
+    const photo = event.target.closest('[data-photo]');
+    if (stopButton) openSheet(stopButton.dataset.memories);
+    else if (photo && urls[photo.dataset.photo]) {
+      $('photo-viewer-img').src = urls[photo.dataset.photo];
+      $('photo-viewer').showModal();
+    } else if (event.target.closest('[data-login]')) openLogin();
+  });
+
   function renderAll() {
     renderAccount();
+    renderButtons();
+    renderSheet();
   }
 
   window.addEventListener('online', () => { if (user) refresh(); });

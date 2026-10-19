@@ -435,6 +435,43 @@ html[data-theme=dark] .account-toggle.is-signed-in{color:#f2cf8a}
 .dialog-close-link{margin-top:14px;font-size:12px}
 /* Con due pulsanti tondi nell'header, a 320px servono più stretti (la regola a 600px più su li farebbe 38px). */
 @media screen and (max-width:360px){.theme-toggle{width:34px;height:34px}.header-inner{gap:6px}.site-header nav{gap:4px}}
+/* Ricordi: pulsante sotto la tappa, pannello dal basso, post-it */
+.memory-button{display:inline-flex;align-items:center;min-height:32px;margin-top:8px;padding:4px 12px;border:1px dashed var(--line);border-radius:16px;background:transparent;color:var(--muted);font-size:12px}
+.memory-button.has-memories{border-style:solid;border-color:var(--accent);color:var(--accent);font-weight:600}
+.sheet{margin:auto auto 0;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;border-radius:16px 16px 0 0;border-bottom:0;padding:22px 20px max(22px,env(safe-area-inset-bottom))}
+.sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.sheet-head h2{font-size:28px;margin:0}
+.sheet-head .eyebrow{margin-bottom:6px}
+.sheet-close{width:40px;height:40px;flex-shrink:0;border:1px solid var(--line);border-radius:50%;background:var(--white);font-size:22px;line-height:1}
+.memory-list{display:grid;gap:14px;margin:18px 0}
+.memory-empty,.diary-empty{color:var(--muted);font-size:13px}
+.memory-card{background:var(--note-paper);border:1px solid var(--line);border-radius:4px;padding:14px 16px 10px;box-shadow:0 3px 10px #0000000f;transform:rotate(-.4deg)}
+.memory-card:nth-child(even){transform:rotate(.4deg)}
+.memory-note{margin:0 0 8px;font:500 21px/1.3 var(--hand);color:var(--ink);white-space:pre-wrap}
+.memory-photos{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.memory-photo{padding:0;border:0;background:none;width:84px;height:84px}
+.memory-photo img{width:100%;height:100%;object-fit:cover;border-radius:3px}
+.memory-photo.is-missing{display:grid;place-content:center;padding:6px;border:1px dashed var(--line);border-radius:3px;font-size:11px;color:var(--muted);text-align:center}
+.memory-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.memory-actions{display:flex;gap:12px}
+.memory-actions .text-button{font-size:12px;min-height:32px}
+.memory-actions .danger{color:var(--accent);font-weight:600}
+.memory-edit{width:100%;min-height:80px;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--white);color:var(--ink);font-size:16px}
+.memory-form{border-top:1px solid var(--line);padding-top:16px}
+.memory-form>label{display:block;font-size:12px;font-weight:600;margin-bottom:8px}
+.memory-form textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--white);color:var(--ink);font-size:16px;resize:vertical}
+.memory-previews{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.memory-preview{position:relative;width:64px;height:64px}
+.memory-preview img{width:100%;height:100%;object-fit:cover;border-radius:3px}
+.memory-preview button{position:absolute;top:-8px;right:-8px;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:var(--white);font-size:15px;line-height:1;padding:0}
+.memory-form-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
+.photo-pick{cursor:pointer;font-size:13px;min-height:44px;display:inline-flex;align-items:center}
+.memory-status{font-size:13px;color:var(--muted);margin:10px 0 0;min-height:1em}
+.memory-status.is-error{color:var(--accent)}
+.photo-viewer{padding:0;border:0;background:transparent;max-width:96vw;max-height:92vh}
+.photo-viewer img{display:block;max-width:96vw;max-height:88vh;border-radius:6px}
+.photo-viewer .sheet-close{position:absolute;top:8px;right:8px}
+@media (prefers-reduced-motion:no-preference){.sheet[open]{animation:sheet-up .25s ease-out}@keyframes sheet-up{from{transform:translateY(40px);opacity:0}}}
 </style>
 </head>
 <body>
@@ -587,6 +624,8 @@ html[data-theme=dark] .account-toggle.is-signed-in{color:#f2cf8a}
   <dialog id="import-dialog"><form method="dialog"><h2>Riprendiamo da qui?</h2><p>Importando il salvataggio, le spunte e gli appunti su questo dispositivo saranno sostituiti. Puoi esportarli prima di continuare.</p><div class="dialog-actions"><button value="cancel" class="button secondary">Annulla</button><button value="confirm" class="button primary">Importa</button></div></form></dialog>
   <dialog id="login-dialog" aria-labelledby="login-title"><form id="login-form"><h2 id="login-title">Entriamo.</h2><p>I ricordi sono solo per noi due: si accede una volta su questo telefono.</p><label class="field">Email<input id="login-email" type="email" autocomplete="username" required></label><label class="field">Password<input id="login-password" type="password" autocomplete="current-password" required></label><p class="form-error" id="login-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" class="button secondary" data-close>Annulla</button><button class="button primary" id="login-submit">Accedi</button></div></form></dialog>
   <dialog id="account-dialog" aria-labelledby="account-title"><form id="password-form"><h2 id="account-title">Ciao.</h2><p>Sei collegato su questo dispositivo.</p><label class="field">Nuova password<input id="new-password" type="password" autocomplete="new-password" minlength="8" required></label><p class="form-status" id="password-status" role="status"></p><div class="dialog-actions"><button type="button" class="button secondary" id="logout-button">Esci</button><button class="button primary" id="password-submit">Cambia password</button></div><button type="button" class="text-button dialog-close-link" data-close>Chiudi</button></form></dialog>
+  <dialog id="memory-sheet" class="sheet" aria-labelledby="sheet-title"><div class="sheet-head"><div><p class="eyebrow">I NOSTRI RICORDI</p><h2 id="sheet-title"></h2></div><button type="button" class="sheet-close" data-close aria-label="Chiudi">×</button></div><div id="memory-list" class="memory-list"></div><form id="memory-form" class="memory-form"><label for="memory-note">Un ricordo di questa tappa</label><textarea id="memory-note" rows="3" maxlength="2000" placeholder="Cosa vogliamo ricordare?"></textarea><div id="memory-previews" class="memory-previews"></div><div class="memory-form-actions"><label class="text-button photo-pick">Aggiungi foto<input id="memory-photos" type="file" accept="image/*" multiple hidden></label><button class="button primary" id="memory-save">Salva</button></div><p id="memory-status" class="memory-status" role="status"></p></form></dialog>
+  <dialog id="photo-viewer" class="photo-viewer" aria-label="Foto"><img id="photo-viewer-img" alt=""><button type="button" class="sheet-close" data-close aria-label="Chiudi">×</button></dialog>
 <script>
 /* Itinerario trascritto dalle due foto e aggiornato con le modifiche richieste.
  * I tempi senza prenotazione sono indicativi. Nessun dato è inviato online. */
@@ -874,7 +913,7 @@ window.PARIS_TRIP = {
     const links = [];
     if (item.query) links.push(`<a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(item.query)}" target="_blank" rel="noopener noreferrer" aria-label="Cerca ${escapeHTML(item.title)} sulla mappa, nuova scheda">Mappa ${icon('external')}</a>`);
     if (item.official) links.push(`<a href="${escapeHTML(item.official)}" target="_blank" rel="noopener noreferrer">Sito ufficiale ${icon('external')}</a>`);
-    return `<li class="timeline-item ${state.done[item.id] ? 'is-done' : ''}" data-stop="${item.id}"><input class="stop-check" type="checkbox" id="${item.id}" data-check="${item.id}" ${state.done[item.id] ? 'checked' : ''} aria-labelledby="title-${item.id}"><span class="stop-time ${/^\d{2}:\d{2}\??$/.test(item.time) ? 'has-clock' : ''}">${escapeHTML(item.time)}</span><div class="stop-content"><div class="stop-header"><span class="stop-title" id="title-${item.id}">${escapeHTML(item.title)}</span><span class="type-tag ${uncertain ? 'uncertain' : ''}">${escapeHTML(item.type)}</span></div><p class="stop-text">${escapeHTML(item.text)}</p>${item.list ? `<ul class="stop-list">${item.list.map(text => `<li>${escapeHTML(text)}</li>`).join('')}</ul>` : ''}${links.length ? `<div class="stop-links">${links.join('')}</div>` : ''}</div></li>`;
+    return `<li class="timeline-item ${state.done[item.id] ? 'is-done' : ''}" data-stop="${item.id}"><input class="stop-check" type="checkbox" id="${item.id}" data-check="${item.id}" ${state.done[item.id] ? 'checked' : ''} aria-labelledby="title-${item.id}"><span class="stop-time ${/^\d{2}:\d{2}\??$/.test(item.time) ? 'has-clock' : ''}">${escapeHTML(item.time)}</span><div class="stop-content"><div class="stop-header"><span class="stop-title" id="title-${item.id}">${escapeHTML(item.title)}</span><span class="type-tag ${uncertain ? 'uncertain' : ''}">${escapeHTML(item.type)}</span></div><p class="stop-text">${escapeHTML(item.text)}</p>${item.list ? `<ul class="stop-list">${item.list.map(text => `<li>${escapeHTML(text)}</li>`).join('')}</ul>` : ''}${links.length ? `<div class="stop-links">${links.join('')}</div>` : ''}<button class="memory-button" type="button" data-memories="${item.id}">Ricordi</button></div></li>`;
   }
 
   // Icona del momento della giornata: sole al mattino, sole basso nel pomeriggio, luna la sera.
@@ -893,6 +932,7 @@ window.PARIS_TRIP = {
     if (revealer) for (const item of timeline.querySelectorAll('.timeline-item')) revealer.observe(item);
     if (motionOK && timeline.animate) timeline.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
     updateProgress();
+    document.dispatchEvent(new CustomEvent('timeline:rendered'));
   }
 
   function updateProgress() {
