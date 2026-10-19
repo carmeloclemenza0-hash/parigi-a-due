@@ -523,7 +523,7 @@
     if (!canSee()) { box.innerHTML = '<p class="diary-empty">Il diario è solo per noi due.</p><button type="button" class="button secondary" data-login>Accedi</button>'; return; }
     const groups = groupByDay(memories);
     box.innerHTML = groups.length
-      ? groups.map(({ day, memories: list }) => `<section class="diary-day"><h3>Giorno ${day.id} · ${esc(day.weekday)} ${esc(day.shortDate)}</h3>${list.map(m => `<p class="diary-stop">${esc(stops.get(m.stopId).item.title)}</p>${memoryCard(m, false)}`).join('')}</section>`).join('')
+      ? groups.map(({ day, memories: list }) => `<section class="diary-day"><h3>Giorno ${day.id} · ${esc(day.weekday)} ${esc(day.shortDate)}</h3>${list.map((m, i) => `${i > 0 && list[i - 1].stopId === m.stopId ? '' : `<p class="diary-stop">${esc(stops.get(m.stopId).item.title)}</p>`}${memoryCard(m, false)}`).join('')}</section>`).join('')
       : '<p class="diary-empty">Qui finiranno i vostri ricordi: tocca “Aggiungi un ricordo” sotto una tappa.</p>';
   }
 
