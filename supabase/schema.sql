@@ -35,6 +35,10 @@ grant execute on function private.is_couple() to authenticated;
 revoke all on public.couple_members, public.memories from anon;
 grant select on public.couple_members to authenticated;
 grant select, insert, update, delete on public.memories to authenticated;
+-- Si modifica solo la nota: le altre colonne (foto, tappa, autore, data) non si toccano dalle API.
+-- (Il trigger su updated_at funziona lo stesso: i trigger non passano dai permessi di colonna.)
+revoke update on public.memories from authenticated;
+grant update (note) on public.memories to authenticated;
 
 alter table public.couple_members enable row level security;
 alter table public.memories enable row level security;
