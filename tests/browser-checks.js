@@ -900,6 +900,22 @@ async (page) => {
     await ctx.close();
   }
 
+  // Scroll: linea del percorso che si disegna e barra di lettura (solo dove il browser sa farlo)
+  {
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
+    const support = await p.evaluate(() => ({ view: CSS.supports('animation-timeline: view()'), scope: CSS.supports('timeline-scope: none') }));
+    const anim = await p.evaluate(() => [getComputedStyle(document.querySelector('.timeline-item'), '::before').animationName, getComputedStyle(document.getElementById('day-nav'), '::after').animationName]);
+    check('scroll: linea che si disegna (se il browser la supporta)', !support.view || anim[0] === 'route-draw', `${JSON.stringify(support)} ${anim[0]}`);
+    check('scroll: barra di lettura (se il browser la supporta)', !(support.view && support.scope) || anim[1] === 'read-progress', `${JSON.stringify(support)} ${anim[1]}`);
+    await ctx.close();
+  }
+  {
+    const { ctx, p } = await open({ reducedMotion: 'reduce', isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
+    const clip = await p.evaluate(() => getComputedStyle(document.querySelector('.timeline-item'), '::before').clipPath);
+    check('movimento ridotto: linea del percorso intera', clip === 'none', clip);
+    await ctx.close();
+  }
+
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));
   const failed = results.filter(r => r.startsWith('FAIL')).length;
   return `${results.join('\n')}\n\n${results.length - failed}/${results.length} controlli superati`;

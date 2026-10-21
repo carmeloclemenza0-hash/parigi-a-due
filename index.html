@@ -291,6 +291,23 @@ html{--day-shift:30px}html[data-day-dir=prev]{--day-shift:-30px}
   .day-nav.is-measuring,.day-nav.is-measuring *{transition:none!important}
 }
 
+/* Mentre si scorre: il tratteggio tra le tappe si disegna e, sul telefono, una linea sotto le linguette dice fin dove si è letto.
+   Solo dove il browser lo sa fare; altrove (e con "Riduci movimento", che spegne le animazioni) tutto resta com'era. */
+@keyframes route-draw{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0)}}
+@keyframes read-progress{to{transform:scaleX(1)}}
+@supports (animation-timeline: view()){
+  .timeline-item{view-timeline:--stop block}
+  .timeline-item::before{animation:route-draw linear both;animation-timeline:--stop;animation-range:entry 20% cover 50%}
+}
+/* La barra ha bisogno anche di timeline-scope (la nav e il pannello sono fratelli): supporto a parte, così la linea non dipende da lei. */
+@supports (animation-timeline: view()) and (timeline-scope: none){
+  @media screen and (max-width:600px){
+    .itinerary-section{timeline-scope:--day-read}
+    #day-panel{view-timeline:--day-read block}
+    .day-nav::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--accent);transform:scaleX(0);transform-origin:left;animation:read-progress linear both;animation-timeline:--day-read;animation-range:contain 0% contain 100%}
+  }
+}
+
 /* Apertura animata della copertina. */
 @keyframes rise{from{opacity:0;transform:translateY(18px)}}
 @keyframes write{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 -12% 0 0)}}
