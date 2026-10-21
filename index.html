@@ -1139,6 +1139,26 @@ window.PARIS_TRIP = {
   $('pending-filter').addEventListener('change', () => renderTimeline());
   $('prev-day').addEventListener('click', () => selectDay(targetOrSelectedDay() - 1, true));
   $('next-day').addEventListener('click', () => selectDay(targetOrSelectedDay() + 1, true));
+  // Swipe tra i giorni sul pannello: solo gesti nettamente orizzontali e lunghi, non partiti dai bordi
+  // (lì iOS usa il "torna indietro") né da campi, link e pulsanti. I listener passivi non bloccano lo scroll.
+  let swipeStart = null;
+  $('day-panel').addEventListener('touchstart', event => {
+    const touch = event.touches[0];
+    const fromEdge = touch.clientX < 24 || touch.clientX > window.innerWidth - 24;
+    swipeStart = event.touches.length === 1 && !fromEdge && !event.target.closest('input, textarea, a, button, label')
+      ? { x: touch.clientX, y: touch.clientY } : null;
+  }, { passive: true });
+  $('day-panel').addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
+  $('day-panel').addEventListener('touchend', event => {
+    if (!swipeStart) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - swipeStart.x;
+    const dy = touch.clientY - swipeStart.y;
+    swipeStart = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(dy)) return;
+    // selectDay ignora da sola i giorni che non esistono (prima del 1, dopo il 5).
+    selectDay(targetOrSelectedDay() + (dx < 0 ? 1 : -1), true);
+  }, { passive: true });
   $('day-note').addEventListener('input', event => { state.notes[state.selectedDay] = event.target.value.slice(0, 5000); save(); });
   $('trip-note').addEventListener('input', event => { state.tripNote = event.target.value.slice(0, 20000); save(); });
   $('print-button').addEventListener('click', () => { renderPrint(); window.print(); });

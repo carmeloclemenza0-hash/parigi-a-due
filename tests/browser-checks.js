@@ -822,6 +822,47 @@ async (page) => {
     await ctx.close();
   }
 
+  // Swipe simulato con eventi touch veri del browser, partendo dall'elemento sotto il dito.
+  const swipe = (p, [x0, y0], [x1, y1]) => p.evaluate(([x0, y0, x1, y1]) => {
+    const target = document.elementFromPoint(x0, y0);
+    const touch = (x, y) => new Touch({ identifier: 1, target, clientX: x, clientY: y });
+    target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [touch(x0, y0)], changedTouches: [touch(x0, y0)] }));
+    target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(x1, y1)] }));
+  }, [x0, y0, x1, y1]);
+  {
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-2' });
+    const pressed = () => p.evaluate(() => Number(document.querySelector('.day-tab[aria-pressed=true]').dataset.day));
+    // Punto di partenza: centro verticale della testata del giorno, sempre ricalcolato dopo uno scroll.
+    const headingY = async () => { await p.locator('#day-panel .day-heading').scrollIntoViewIfNeeded(); const b = await p.locator('#day-panel .day-heading').boundingBox(); return b.y + b.height / 2; };
+    let y = await headingY();
+    await swipe(p, [300, y], [150, y + 10]); await p.waitForTimeout(500);
+    check('swipe: verso sinistra → giorno dopo', await pressed() === 3);
+    y = await headingY();
+    await swipe(p, [100, y], [260, y]); await p.waitForTimeout(500);
+    check('swipe: verso destra → giorno prima', await pressed() === 2);
+    y = await headingY();
+    await swipe(p, [300, y], [200, y + 150]); await p.waitForTimeout(400);
+    check('swipe: gesto quasi verticale ignorato', await pressed() === 2);
+    await swipe(p, [300, y], [260, y]); await p.waitForTimeout(400);
+    check('swipe: gesto corto ignorato', await pressed() === 2);
+    await swipe(p, [380, y], [200, y]); await p.waitForTimeout(400);
+    check('swipe: partito dal bordo ignorato', await pressed() === 2);
+    const link = p.locator('#timeline .stop-links a').first();
+    await link.scrollIntoViewIfNeeded();
+    const lb = await link.boundingBox();
+    await swipe(p, [lb.x + lb.width / 2, lb.y + lb.height / 2], [lb.x + lb.width / 2 - 150, lb.y + lb.height / 2]); await p.waitForTimeout(400);
+    check('swipe: partito da un link ignorato', await pressed() === 2);
+    await p.evaluate(() => { location.hash = '#giorno-1'; }); await p.waitForTimeout(500);
+    y = await headingY();
+    await swipe(p, [100, y], [260, y]); await p.waitForTimeout(400);
+    check('swipe: prima del giorno 1 non succede nulla', await pressed() === 1);
+    await p.evaluate(() => { location.hash = '#giorno-5'; }); await p.waitForTimeout(500);
+    y = await headingY();
+    await swipe(p, [300, y], [150, y]); await p.waitForTimeout(400);
+    check('swipe: dopo il giorno 5 non succede nulla', await pressed() === 5);
+    await ctx.close();
+  }
+
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));
   const failed = results.filter(r => r.startsWith('FAIL')).length;
   return `${results.join('\n')}\n\n${results.length - failed}/${results.length} controlli superati`;
