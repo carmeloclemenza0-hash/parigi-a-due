@@ -259,7 +259,9 @@ h1 em{display:inline-block}
 .day-tab.is-complete::after{content:'✓';position:absolute;top:-9px;right:-7px;width:26px;height:26px;display:grid;place-content:center;border:1.5px solid var(--accent);border-radius:50%;background:var(--paper);color:var(--accent);font:700 13px/1 var(--sans);transform:rotate(-12deg);box-shadow:inset 0 0 0 2px var(--paper),inset 0 0 0 3px #a4563e55;animation:stamp .45s ease both}
 
 /* Le tappe compaiono mentre si scorre: la classe "reveal" la mette lo script solo se il movimento è consentito. */
-.reveal .timeline-item{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease}
+/* Ritmo unico delle animazioni nuove: tre durate e due curve, da cambiare solo qui. */
+:root{--dur-fast:.2s;--dur-base:.3s;--dur-slow:.4s;--ease-out:cubic-bezier(.2,.7,.2,1);--ease-in-out:cubic-bezier(.65,0,.35,1)}
+.reveal .timeline-item{opacity:0;transform:translateY(14px);transition:opacity var(--dur-slow) var(--ease-out) var(--stagger,0ms),transform var(--dur-slow) var(--ease-out) var(--stagger,0ms)}
 .reveal .timeline-item.is-visible{opacity:1;transform:none}
 
 /* Apertura animata della copertina. */
@@ -850,10 +852,16 @@ window.PARIS_TRIP = {
   let toastTimer;
   let state = { version: 1, selectedDay: 1, done: {}, notes: {}, tripNote: '' };
   const motionOK = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // Le tappe compaiono con una dissolvenza mentre si scorre, solo se il movimento è consentito.
+  // Le tappe compaiono con una dissolvenza a cascata mentre si scorre, solo se il movimento è consentito.
   const revealer = motionOK && 'IntersectionObserver' in window
     ? new IntersectionObserver(entries => {
-        for (const entry of entries) if (entry.isIntersecting) { entry.target.classList.add('is-visible'); revealer.unobserve(entry.target); }
+        // Le tappe che compaiono insieme entrano a cascata: 60 ms l'una, al massimo 300 ms.
+        let step = 0;
+        for (const entry of entries) if (entry.isIntersecting) {
+          entry.target.style.setProperty('--stagger', `${Math.min(step++, 5) * 60}ms`);
+          entry.target.classList.add('is-visible');
+          revealer.unobserve(entry.target);
+        }
       }, { rootMargin: '0px 0px -8% 0px' })
     : null;
   if (revealer) document.documentElement.classList.add('reveal');

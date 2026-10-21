@@ -769,6 +769,20 @@ async (page) => {
     await ctx.close();
   }
 
+  // 16. Fluidità: ritmo unico, cambio giorno animato, swipe, linguette compatte, effetti di scroll
+  {
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
+    const tokens = await p.evaluate(() => ['--dur-fast', '--dur-base', '--dur-slow'].map(name => getComputedStyle(document.documentElement).getPropertyValue(name).trim()));
+    check('ritmo: durate condivise', tokens.join() === '.2s,.3s,.4s', tokens.join());
+    await p.locator('#timeline').scrollIntoViewIfNeeded();
+    await p.waitForTimeout(600);
+    const staggers = await p.evaluate(() => [...document.querySelectorAll('.timeline-item.is-visible')].map(e => e.style.getPropertyValue('--stagger')));
+    check('tappe sfalsate: ritardo crescente, massimo 300 ms', staggers.length > 1 && staggers[0] === '0ms' && staggers[1] === '60ms' && staggers.every(s => parseInt(s) <= 300), staggers.join());
+    const duration = await p.locator('.timeline-item').first().evaluate(e => getComputedStyle(e).transitionDuration);
+    check('tappe sfalsate: durata del ritmo lento', duration.startsWith('0.4s'), duration);
+    await ctx.close();
+  }
+
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));
   const failed = results.filter(r => r.startsWith('FAIL')).length;
   return `${results.join('\n')}\n\n${results.length - failed}/${results.length} controlli superati`;
