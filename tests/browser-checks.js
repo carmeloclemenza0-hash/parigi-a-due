@@ -882,11 +882,21 @@ async (page) => {
     for (let i = 0; i < 20; i++) { await p.waitForTimeout(50); samples.push(await p.locator('#day-nav').evaluate(e => e.classList.contains('is-compact'))); }
     await p.waitForTimeout(500);
     const after = await p.evaluate(() => ({ y: scrollY, docTop: document.getElementById('timeline').getBoundingClientRect().top + scrollY, compact: document.getElementById('day-nav').classList.contains('is-compact') }));
-    check('linguette: compattandosi il contenuto non si sposta', after.compact && Math.abs(after.y - before.y) <= 3 && Math.abs(after.docTop - before.docTop) < 2, JSON.stringify({ before, after }));
+    check('linguette: compattandosi il contenuto non si sposta', after.compact && Math.abs(after.y - before.y) <= 1 && Math.abs(after.docTop - before.docTop) <= 1, JSON.stringify({ before, after }));
     check('linguette: nessuna oscillazione da ferme', samples.every(Boolean), samples.map(Number).join(''));
     await p.evaluate(() => window.scrollTo(0, 0));
     await p.waitForTimeout(400);
     check('linguette: tornano normali in cima alla pagina', !(await p.locator('#day-nav').evaluate(e => e.classList.contains('is-compact'))));
+    // Parcheggiati con la sentinella appena sopra lo schermo (-1, -2, -4 px) lo stato deve restare fermo e compatto.
+    for (const k of [1, 2, 4]) {
+      await p.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' })); await p.waitForTimeout(400);
+      await p.evaluate(() => window.scrollTo({ top: document.getElementById('nav-sentinel').getBoundingClientRect().top + scrollY + 40, behavior: 'instant' })); await p.waitForTimeout(400); // prima compatta, poi si scende fino alla soglia
+      await p.evaluate(n => window.scrollTo({ top: document.getElementById('nav-sentinel').getBoundingClientRect().top + scrollY + n, behavior: 'instant' }), k);
+      await p.waitForTimeout(400);
+      const park = [];
+      for (let i = 0; i < 40; i++) { await p.waitForTimeout(25); park.push(await p.locator('#day-nav').evaluate(e => e.classList.contains('is-compact'))); }
+      check(`linguette: ferme e compatte con sentinella a -${k}px`, park.every(Boolean), park.map(Number).join(''));
+    }
     await ctx.close();
   }
 

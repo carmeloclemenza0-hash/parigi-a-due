@@ -1180,13 +1180,15 @@ window.PARIS_TRIP = {
   // colpo solo (link, scrollIntoView) l'observer non notifica nulla e la barra resterebbe nello stato sbagliato.
   // La barra perde altezza compattandosi: la si misura (senza transizioni) e il CSS la compensa con il margine, così il
   // contenuto non si sposta e lo scroll anchoring resta attivo senza innescare oscillazioni.
+  // Solo sul telefono (stessa media query del CSS): altrove le linguette restano sempre normali.
+  const phoneNav = window.matchMedia('(max-width: 600px)');
   const measureNavShrink = () => {
     const nav = $('day-nav'), wasCompact = nav.classList.contains('is-compact');
     nav.classList.add('is-measuring');
     nav.classList.remove('is-compact');
-    const normal = nav.offsetHeight;
+    const normal = nav.getBoundingClientRect().height; // altezze frazionarie: offsetHeight arrotonda e sfalsa il margine
     nav.classList.add('is-compact');
-    const compact = nav.offsetHeight;
+    const compact = nav.getBoundingClientRect().height;
     nav.classList.toggle('is-compact', wasCompact);
     nav.style.setProperty('--nav-shrink', Math.max(0, normal - compact) + 'px');
     nav.offsetHeight; // forza il ricalcolo prima di riattivare le transizioni
@@ -1195,15 +1197,22 @@ window.PARIS_TRIP = {
   let navFrame = 0;
   const updateNavCompact = () => {
     navFrame = 0;
-    const nav = $('day-nav'), compact = $('nav-sentinel').getBoundingClientRect().top < 0;
-    if (compact === nav.classList.contains('is-compact')) return;
+    const nav = $('day-nav'), isCompact = nav.classList.contains('is-compact');
+    if (!phoneNav.matches) { nav.classList.remove('is-compact'); return; }
+    // Isteresi: durante la transizione l'altezza della barra e il margine non si compensano al pixel, e lo scroll anchoring
+    // può spostare lo scroll di qualche px. Con una sola soglia a 0 la barra rimbalzerebbe: si compatta oltre -4px e
+    // torna normale solo da 0 in su; nella fascia in mezzo resta com'è.
+    const top = $('nav-sentinel').getBoundingClientRect().top;
+    const compact = isCompact ? top < 0 : top < -4;
+    if (compact === isCompact) return;
     if (compact) measureNavShrink();
     nav.classList.toggle('is-compact', compact);
   };
   window.addEventListener('scroll', () => { if (!navFrame) navFrame = requestAnimationFrame(updateNavCompact); }, { passive: true });
-  updateNavCompact();
+  const refreshNav = () => { if (phoneNav.matches) measureNavShrink(); updateNavCompact(); };
   let navResizeTimer;
-  window.addEventListener('resize', () => { clearTimeout(navResizeTimer); navResizeTimer = setTimeout(() => { measureNavShrink(); updateNavCompact(); }, 150); });
+  window.addEventListener('resize', () => { clearTimeout(navResizeTimer); navResizeTimer = setTimeout(refreshNav, 150); });
+  phoneNav.addEventListener('change', refreshNav);
   $('day-note').addEventListener('input', event => { state.notes[state.selectedDay] = event.target.value.slice(0, 5000); save(); });
   $('trip-note').addEventListener('input', event => { state.tripNote = event.target.value.slice(0, 20000); save(); });
   $('print-button').addEventListener('click', () => { renderPrint(); window.print(); });
@@ -1271,6 +1280,7 @@ window.PARIS_TRIP = {
   $('trip-note').value = state.tripNote;
   renderNav();
   renderDay();
+  refreshNav(); // le linguette ora esistono: prima misura e stato iniziale
   startCountdown();
   document.addEventListener('visibilitychange', () => { if (document.hidden) clearInterval(countdownTimer); else startCountdown(); });
   // Nei giorni del viaggio si salta la copertina e si va dritti alle tappe di oggi.
