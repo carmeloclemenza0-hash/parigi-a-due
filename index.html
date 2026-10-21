@@ -263,6 +263,17 @@ h1 em{display:inline-block}
 :root{--dur-fast:.2s;--dur-base:.3s;--dur-slow:.4s;--ease-out:cubic-bezier(.2,.7,.2,1);--ease-in-out:cubic-bezier(.65,0,.35,1)}
 .reveal .timeline-item{opacity:0;transform:translateY(14px);transition:opacity var(--dur-slow) var(--ease-out) var(--stagger,0ms),transform var(--dur-slow) var(--ease-out) var(--stagger,0ms)}
 .reveal .timeline-item.is-visible{opacity:1;transform:none}
+/* Cambio giorno: il pannello esce e il nuovo entra di lato (direzione da data-day-dir), la linguetta attiva scivola. */
+#day-panel{view-transition-name:day-panel}
+.day-tab[aria-pressed=true]{view-transition-name:active-tab}
+html{--day-shift:30px}html[data-day-dir=prev]{--day-shift:-30px}
+@keyframes day-out{to{opacity:0;transform:translateX(calc(var(--day-shift) * -1))}}
+@keyframes day-in{from{opacity:0;transform:translateX(var(--day-shift))}}
+::view-transition-group(root),::view-transition-group(active-tab){animation-duration:var(--dur-base);animation-timing-function:var(--ease-in-out)}
+::view-transition-old(root),::view-transition-new(root){animation-duration:var(--dur-base)}
+::view-transition-group(day-panel){animation:none}
+::view-transition-old(day-panel){animation:day-out var(--dur-base) var(--ease-out) both}
+::view-transition-new(day-panel){animation:day-in var(--dur-base) var(--ease-out) both}
 
 /* Apertura animata della copertina. */
 @keyframes rise{from{opacity:0;transform:translateY(18px)}}
@@ -939,14 +950,14 @@ window.PARIS_TRIP = {
     return 'sun';
   }
 
-  function renderTimeline() {
+  function renderTimeline({ fade = true } = {}) {
     const day = currentDay();
     const pendingOnly = $('pending-filter').checked;
     const groups = day.groups.map(group => ({...group, items: group.items.filter(item => !pendingOnly || !state.done[item.id])})).filter(group => group.items.length);
     const timeline = $('timeline');
     timeline.innerHTML = groups.length ? groups.map((group, index) => `<section class="timeline-group" aria-labelledby="group-${index}"><div class="group-heading">${icon(momentIcon(group.label), 'group-icon')}<h4 id="group-${index}">${escapeHTML(group.label)}</h4><span>${escapeHTML(group.subtitle)}</span></div><ul class="timeline-items">${group.items.map(renderItem).join('')}</ul></section>`).join('') : `<div class="empty-state"><h4>Una giornata piena di ricordi.</h4><p>Hai spuntato tutte le tappe. Disattiva “Solo da fare” per rivederle.</p></div>`;
     if (revealer) for (const item of timeline.querySelectorAll('.timeline-item')) revealer.observe(item);
-    if (motionOK && timeline.animate) timeline.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
+    if (fade && motionOK && timeline.animate) timeline.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
     updateProgress();
     document.dispatchEvent(new CustomEvent('timeline:rendered'));
   }
@@ -972,7 +983,7 @@ window.PARIS_TRIP = {
     }
   }
 
-  function renderDay() {
+  function renderDay({ fade = true } = {}) {
     const day = currentDay();
     $('day-date').textContent = `Giorno ${day.id} / ${day.weekday} ${day.shortDate.replace('nov', 'novembre')} 2026`;
     $('day-title').textContent = day.title;
@@ -995,20 +1006,39 @@ window.PARIS_TRIP = {
     $('next-day').disabled = day.id === trip.days.length;
     $('source-details').open = false;
     for (const button of $('day-nav').querySelectorAll('[data-day]')) button.setAttribute('aria-pressed', String(Number(button.dataset.day) === day.id));
-    renderTimeline();
+    renderTimeline({ fade });
     updateStorageStatus();
   }
 
+  // Cambio giorno animato con le View Transitions: il pannello scivola nella direzione del giorno.
+  // Senza supporto o con "Riduci movimento" il cambio resta istantaneo, come prima.
+  let dayTransition = null;
   function selectDay(id, focus = false) {
     if (!trip.days.some(day => day.id === id)) return;
-    state.selectedDay = id;
-    save();
-    renderDay();
-    try { window.history.replaceState(null, '', `#giorno-${id}`); } catch (error) { /* Apribile anche in contesti senza History API. */ }
-    if (focus) {
-      $('day-title').focus({preventScroll:true});
-      $('day-panel').scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
-    }
+    const animate = motionOK && typeof document.startViewTransition === 'function' && id !== state.selectedDay;
+    const forward = id > state.selectedDay;
+    const update = () => {
+      state.selectedDay = id;
+      save();
+      // Durante la transizione il fade della timeline si sovrapporrebbe allo scivolamento.
+      renderDay({ fade: !animate });
+      try { window.history.replaceState(null, '', `#giorno-${id}`); } catch (error) { /* Apribile anche in contesti senza History API. */ }
+      if (focus) {
+        $('day-title').focus({preventScroll:true});
+        // Dentro la transizione lo scroll è istantaneo: uno smooth sotto l'animazione la farebbe slittare.
+        $('day-panel').scrollIntoView({behavior: animate || !motionOK ? 'auto' : 'smooth', block:'start'});
+      }
+    };
+    if (!animate) { update(); return; }
+    if (dayTransition) dayTransition.skipTransition();
+    document.documentElement.dataset.dayDir = forward ? 'next' : 'prev';
+    const transition = dayTransition = document.startViewTransition(update);
+    // Il giorno cambia comunque dentro update(); qui si segnala solo se qualcosa va storto davvero.
+    transition.updateCallbackDone.catch(error => console.error('Cambio giorno non riuscito:', error));
+    // AbortError è atteso quando un tocco rapido salta la transizione precedente.
+    transition.ready.catch(error => { if (error.name !== 'AbortError') console.error('Animazione del cambio giorno non riuscita:', error); });
+    const clear = () => { if (dayTransition === transition) dayTransition = null; };
+    transition.finished.then(clear, clear);
   }
 
   // Piccola festa quando si spunta una tappa: il cerchio fa "pop" e sale un cuoricino.
@@ -1099,7 +1129,7 @@ window.PARIS_TRIP = {
       (nextInput || $('pending-filter')).focus({preventScroll:true});
     } else updateProgress();
   });
-  $('pending-filter').addEventListener('change', renderTimeline);
+  $('pending-filter').addEventListener('change', () => renderTimeline());
   $('prev-day').addEventListener('click', () => selectDay(state.selectedDay - 1, true));
   $('next-day').addEventListener('click', () => selectDay(state.selectedDay + 1, true));
   $('day-note').addEventListener('input', event => { state.notes[state.selectedDay] = event.target.value.slice(0, 5000); save(); });

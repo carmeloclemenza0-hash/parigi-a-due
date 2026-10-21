@@ -782,6 +782,41 @@ async (page) => {
     check('tappe sfalsate: durata del ritmo lento', duration.startsWith('0.4s'), duration);
     await ctx.close();
   }
+  {
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
+    // Si conta quante volte il sito avvia una View Transition (il browser di test la supporta).
+    await p.evaluate(() => {
+      window.__vt = 0;
+      const original = document.startViewTransition.bind(document);
+      document.startViewTransition = callback => { window.__vt++; return original(callback); };
+    });
+    await p.locator('[data-day="3"]').tap();
+    await p.waitForTimeout(500);
+    const dir = await p.evaluate(() => document.documentElement.dataset.dayDir);
+    check('cambio giorno: View Transition avviata, direzione avanti', await p.evaluate(() => window.__vt) === 1 && dir === 'next', `vt ${await p.evaluate(() => window.__vt)}, dir ${dir}`);
+    check('cambio giorno: giorno e indirizzo aggiornati', await p.locator('[data-day="3"]').getAttribute('aria-pressed') === 'true' && await p.evaluate(() => location.hash) === '#giorno-3');
+    await p.locator('#prev-day').tap();
+    await p.waitForTimeout(500);
+    check('cambio giorno: direzione indietro', await p.evaluate(() => document.documentElement.dataset.dayDir) === 'prev' && await p.locator('[data-day="2"]').getAttribute('aria-pressed') === 'true');
+    // Tocchi rapidi: vince l'ultimo, nessun errore (gli errori in console li raccoglie già `open`).
+    await p.evaluate(() => { for (const d of [4, 5, 1]) document.querySelector(`[data-day="${d}"]`).click(); });
+    await p.waitForTimeout(700);
+    check('cambio giorno: tocchi rapidi finiscono sull’ultimo', await p.locator('[data-day="1"]').getAttribute('aria-pressed') === 'true' && await p.evaluate(() => location.hash) === '#giorno-1');
+    const names = await p.evaluate(() => [getComputedStyle(document.getElementById('day-panel')).viewTransitionName, getComputedStyle(document.querySelector('.day-tab[aria-pressed=true]')).viewTransitionName]);
+    check('cambio giorno: pannello e linguetta attiva hanno un nome di transizione', names.join() === 'day-panel,active-tab', names.join());
+    await ctx.close();
+  }
+  {
+    const { ctx, p } = await open({ reducedMotion: 'reduce', isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
+    await p.evaluate(() => {
+      window.__vt = 0;
+      const original = document.startViewTransition.bind(document);
+      document.startViewTransition = callback => { window.__vt++; return original(callback); };
+    });
+    await p.locator('[data-day="2"]').tap();
+    check('movimento ridotto: cambio giorno istantaneo, senza View Transition', await p.evaluate(() => window.__vt) === 0 && await p.locator('[data-day="2"]').getAttribute('aria-pressed') === 'true');
+    await ctx.close();
+  }
 
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));
   const failed = results.filter(r => r.startsWith('FAIL')).length;
