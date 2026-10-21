@@ -169,6 +169,9 @@ async (page) => {
     const after = await p.locator('[data-day="5"]').evaluate(e => e.classList.contains('is-complete'));
     check('timbro: compare solo a giorno completato', !before && after);
     await p.locator('.day-heading').first().screenshot({ path: 'C:/Users/Carme/Desktop/AIWORKSPACE/Vario/.playwright-mcp/shot-day5.png' });
+    // Le linguette cambiano altezza a seconda dello scroll: Playwright non le troverebbe mai "stabili" se deve scorrere lui.
+    // Le si porta prima in vista a mano (sentinella ancora visibile = non compatte).
+    await p.evaluate(() => window.scrollTo(0, document.getElementById('nav-sentinel').offsetTop - 200)); await p.waitForTimeout(700);
     await p.locator('#day-nav').screenshot({ path: 'C:/Users/Carme/Desktop/AIWORKSPACE/Vario/.playwright-mcp/shot-nav.png' });
     await ctx.close();
   }
@@ -860,6 +863,30 @@ async (page) => {
     y = await headingY();
     await swipe(p, [300, y], [150, y]); await p.waitForTimeout(400);
     check('swipe: dopo il giorno 5 non succede nulla', await pressed() === 5);
+    await ctx.close();
+  }
+
+  {
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
+    await p.evaluate(() => document.getElementById('timeline').scrollIntoView({ block: 'start' }));
+    await p.waitForTimeout(400);
+    const stuck = await p.locator('#day-nav').evaluate(e => ({ compact: e.classList.contains('is-compact'), height: e.getBoundingClientRect().height }));
+    check('linguette: compatte quando si attaccano in alto', stuck.compact && stuck.height < 90, JSON.stringify(stuck));
+    // Compattarsi non deve spostare il contenuto: posizione nel documento prima/dopo, scrollY invariato, nessuna oscillazione.
+    await p.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' })); await p.waitForTimeout(400);
+    const before = await p.evaluate(() => {
+      window.scrollTo({ top: document.getElementById('nav-sentinel').offsetTop + 60, behavior: 'instant' });
+      return { y: scrollY, docTop: document.getElementById('timeline').getBoundingClientRect().top + scrollY };
+    });
+    const samples = [];
+    for (let i = 0; i < 20; i++) { await p.waitForTimeout(50); samples.push(await p.locator('#day-nav').evaluate(e => e.classList.contains('is-compact'))); }
+    await p.waitForTimeout(500);
+    const after = await p.evaluate(() => ({ y: scrollY, docTop: document.getElementById('timeline').getBoundingClientRect().top + scrollY, compact: document.getElementById('day-nav').classList.contains('is-compact') }));
+    check('linguette: compattandosi il contenuto non si sposta', after.compact && Math.abs(after.y - before.y) <= 3 && Math.abs(after.docTop - before.docTop) < 2, JSON.stringify({ before, after }));
+    check('linguette: nessuna oscillazione da ferme', samples.every(Boolean), samples.map(Number).join(''));
+    await p.evaluate(() => window.scrollTo(0, 0));
+    await p.waitForTimeout(400);
+    check('linguette: tornano normali in cima alla pagina', !(await p.locator('#day-nav').evaluate(e => e.classList.contains('is-compact'))));
     await ctx.close();
   }
 

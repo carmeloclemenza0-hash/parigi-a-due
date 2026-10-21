@@ -277,6 +277,20 @@ html{--day-shift:30px}html[data-day-dir=prev]{--day-shift:-30px}
 ::view-transition-old(day-panel){animation:day-out var(--dur-base) var(--ease-out) both}
 ::view-transition-new(day-panel){animation:day-in var(--dur-base) var(--ease-out) both}
 
+/* Sul telefono le linguette sticky si compattano quando si attaccano in alto (lo decide lo script con la sentinella). */
+.nav-sentinel{height:1px;margin-bottom:-1px}
+@media screen and (max-width:600px){
+  .day-nav .day-tab{transition:background .2s,border-color .2s,transform .2s,min-height var(--dur-fast) var(--ease-in-out),padding var(--dur-fast) var(--ease-in-out)}
+  .day-nav.is-compact .day-tab{min-height:52px;padding-block:6px}
+  .day-nav.is-compact .tab-date{display:none}
+  /* Quando la barra si restringe, il margine inferiore cresce della stessa misura (--nav-shrink, misurata dallo script):
+     lo spazio occupato resta costante, il contenuto sotto non si muove e lo scroll anchoring non corregge lo scroll
+     (altrimenti la sentinella rientra in vista e la barra oscilla tra compatta e normale). Stessa durata/curva dei tab. */
+  .day-nav{transition:margin-bottom var(--dur-fast) var(--ease-in-out)}
+  .day-nav.is-compact{margin-bottom:calc(24px + var(--nav-shrink,0px))}
+  .day-nav.is-measuring,.day-nav.is-measuring *{transition:none!important}
+}
+
 /* Apertura animata della copertina. */
 @keyframes rise{from{opacity:0;transform:translateY(18px)}}
 @keyframes write{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 -12% 0 0)}}
@@ -569,6 +583,7 @@ html[data-theme=dark] .account-toggle.is-signed-in{color:#f2cf8a}
 
     <section class="itinerary-section wrap" id="itinerario" aria-labelledby="itinerary-title">
       <div class="section-heading"><div><p class="eyebrow">UN GIORNO ALLA VOLTA</p><h2 id="itinerary-title">La nostra Parigi.</h2></div><button class="text-button" id="print-button"><svg class="icon"><use href="#i-print"/></svg>Stampa / PDF</button></div>
+      <div class="nav-sentinel" id="nav-sentinel" aria-hidden="true"></div>
       <div class="day-nav" id="day-nav" role="group" aria-label="Scegli una giornata"></div>
       <div class="journey-layout">
         <article class="day-panel" id="day-panel" aria-labelledby="day-title">
@@ -1159,6 +1174,36 @@ window.PARIS_TRIP = {
     // selectDay ignora da sola i giorni che non esistono (prima del 1, dopo il 5).
     selectDay(targetOrSelectedDay() + (dx < 0 ? 1 : -1), true);
   }, { passive: true });
+  // La sentinella sta prima delle linguette: quando esce dall'alto dello schermo le linguette sono attaccate.
+  // Il loro cambio d'altezza non sposta la sentinella (il margine compensa, vedi CSS), quindi l'effetto non può oscillare.
+  // Si legge la posizione a ogni scroll (con rAF) e non con IntersectionObserver: se si salta oltre la sentinella in un
+  // colpo solo (link, scrollIntoView) l'observer non notifica nulla e la barra resterebbe nello stato sbagliato.
+  // La barra perde altezza compattandosi: la si misura (senza transizioni) e il CSS la compensa con il margine, così il
+  // contenuto non si sposta e lo scroll anchoring resta attivo senza innescare oscillazioni.
+  const measureNavShrink = () => {
+    const nav = $('day-nav'), wasCompact = nav.classList.contains('is-compact');
+    nav.classList.add('is-measuring');
+    nav.classList.remove('is-compact');
+    const normal = nav.offsetHeight;
+    nav.classList.add('is-compact');
+    const compact = nav.offsetHeight;
+    nav.classList.toggle('is-compact', wasCompact);
+    nav.style.setProperty('--nav-shrink', Math.max(0, normal - compact) + 'px');
+    nav.offsetHeight; // forza il ricalcolo prima di riattivare le transizioni
+    nav.classList.remove('is-measuring');
+  };
+  let navFrame = 0;
+  const updateNavCompact = () => {
+    navFrame = 0;
+    const nav = $('day-nav'), compact = $('nav-sentinel').getBoundingClientRect().top < 0;
+    if (compact === nav.classList.contains('is-compact')) return;
+    if (compact) measureNavShrink();
+    nav.classList.toggle('is-compact', compact);
+  };
+  window.addEventListener('scroll', () => { if (!navFrame) navFrame = requestAnimationFrame(updateNavCompact); }, { passive: true });
+  updateNavCompact();
+  let navResizeTimer;
+  window.addEventListener('resize', () => { clearTimeout(navResizeTimer); navResizeTimer = setTimeout(() => { measureNavShrink(); updateNavCompact(); }, 150); });
   $('day-note').addEventListener('input', event => { state.notes[state.selectedDay] = event.target.value.slice(0, 5000); save(); });
   $('trip-note').addEventListener('input', event => { state.tripNote = event.target.value.slice(0, 20000); save(); });
   $('print-button').addEventListener('click', () => { renderPrint(); window.print(); });
