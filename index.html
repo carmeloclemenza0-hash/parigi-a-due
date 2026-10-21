@@ -276,6 +276,12 @@ html{--day-shift:30px}html[data-day-dir=prev]{--day-shift:-30px}
 ::view-transition-group(day-panel){animation:none}
 ::view-transition-old(day-panel){animation:day-out var(--dur-base) var(--ease-out) both}
 ::view-transition-new(day-panel){animation:day-in var(--dur-base) var(--ease-out) both}
+/* Nel livello della transizione i gruppi si dipingono nell'ordine del documento: dando un nome anche alla barra (ferma, senza animazione)
+   resta sopra il pannello che scorre, e la linguetta attiva, che sta dentro la barra, resta sopra la barra. Solo #day-nav: il nome deve essere unico. */
+#day-nav{view-transition-name:day-nav}
+::view-transition-group(day-nav){animation:none}
+::view-transition-old(day-nav){display:none}
+::view-transition-new(day-nav){animation:none}
 
 /* Sul telefono le linguette sticky si compattano quando si attaccano in alto (lo decide lo script con la sentinella). */
 .nav-sentinel{height:1px;margin-bottom:-1px}
@@ -299,6 +305,8 @@ html{--day-shift:30px}html[data-day-dir=prev]{--day-shift:-30px}
   .timeline-item{view-timeline:--stop block}
   .timeline-item::before{animation:route-draw linear both;animation-timeline:--stop;animation-range:entry 20% cover 50%}
 }
+/* In stampa il tratteggio deve essere sempre intero, qualunque sia la posizione di scroll. */
+@media print{.timeline-item::before{animation:none!important}}
 /* La barra ha bisogno anche di timeline-scope (la nav e il pannello sono fratelli): supporto a parte, così la linea non dipende da lei. */
 @supports (animation-timeline: view()) and (timeline-scope: none){
   @media screen and (max-width:600px){
@@ -1177,7 +1185,9 @@ window.PARIS_TRIP = {
   $('day-panel').addEventListener('touchstart', event => {
     const touch = event.touches[0];
     const fromEdge = touch.clientX < 24 || touch.clientX > window.innerWidth - 24;
-    swipeStart = event.touches.length === 1 && !fromEdge && !event.target.closest('input, textarea, a, button, label')
+    // Con lo zoom a pellizco un dito che trascina serve a spostarsi nella pagina, non a cambiare giorno.
+    const zoomed = window.visualViewport && window.visualViewport.scale > 1.01;
+    swipeStart = event.touches.length === 1 && !fromEdge && !zoomed && !event.target.closest('input, textarea, a, button, label')
       ? { x: touch.clientX, y: touch.clientY } : null;
   }, { passive: true });
   $('day-panel').addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
@@ -1192,11 +1202,12 @@ window.PARIS_TRIP = {
     selectDay(targetOrSelectedDay() + (dx < 0 ? 1 : -1), true);
   }, { passive: true });
   // La sentinella sta prima delle linguette: quando esce dall'alto dello schermo le linguette sono attaccate.
-  // Il loro cambio d'altezza non sposta la sentinella (il margine compensa, vedi CSS), quindi l'effetto non può oscillare.
   // Si legge la posizione a ogni scroll (con rAF) e non con IntersectionObserver: se si salta oltre la sentinella in un
   // colpo solo (link, scrollIntoView) l'observer non notifica nulla e la barra resterebbe nello stato sbagliato.
-  // La barra perde altezza compattandosi: la si misura (senza transizioni) e il CSS la compensa con il margine, così il
-  // contenuto non si sposta e lo scroll anchoring resta attivo senza innescare oscillazioni.
+  // Compattandosi la barra perde altezza: la si misura (senza transizioni) e il CSS aggiunge al margine la stessa misura, così
+  // l'altezza totale resta (quasi) costante, il contenuto non si sposta e lo scroll anchoring non corregge lo scroll.
+  // Durante la transizione di 0,2 s resta però una piccola differenza residua, che può spostare la sentinella di qualche px:
+  // per questo c'è l'isteresi (due soglie diverse, vedi updateNavCompact).
   // Solo sul telefono (stessa media query del CSS): altrove le linguette restano sempre normali.
   const phoneNav = window.matchMedia('(max-width: 600px)');
   const measureNavShrink = () => {
@@ -1216,9 +1227,8 @@ window.PARIS_TRIP = {
     navFrame = 0;
     const nav = $('day-nav'), isCompact = nav.classList.contains('is-compact');
     if (!phoneNav.matches) { nav.classList.remove('is-compact'); return; }
-    // Isteresi: durante la transizione l'altezza della barra e il margine non si compensano al pixel, e lo scroll anchoring
-    // può spostare lo scroll di qualche px. Con una sola soglia a 0 la barra rimbalzerebbe: si compatta oltre -4px e
-    // torna normale solo da 0 in su; nella fascia in mezzo resta com'è.
+    // Isteresi: con una sola soglia a 0 la differenza residua farebbe rimbalzare la barra. Quindi si compatta oltre -4px
+    // e torna normale solo da 0 in su; nella fascia in mezzo resta com'è.
     const top = $('nav-sentinel').getBoundingClientRect().top;
     const compact = isCompact ? top < 0 : top < -4;
     if (compact === isCompact) return;
