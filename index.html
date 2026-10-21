@@ -269,8 +269,10 @@ h1 em{display:inline-block}
 html{--day-shift:30px}html[data-day-dir=prev]{--day-shift:-30px}
 @keyframes day-out{to{opacity:0;transform:translateX(calc(var(--day-shift) * -1))}}
 @keyframes day-in{from{opacity:0;transform:translateX(var(--day-shift))}}
-::view-transition-group(root),::view-transition-group(active-tab){animation-duration:var(--dur-base);animation-timing-function:var(--ease-in-out)}
-::view-transition-old(root),::view-transition-new(root){animation-duration:var(--dur-base)}
+/* Il resto della pagina cambia subito: una dissolvenza dell'intera pagina mescolerebbe due posizioni di scroll diverse (il pannello torna in cima). */
+::view-transition-group(active-tab){animation-duration:var(--dur-base);animation-timing-function:var(--ease-in-out)}
+::view-transition-old(root){display:none}
+::view-transition-new(root){animation:none}
 ::view-transition-group(day-panel){animation:none}
 ::view-transition-old(day-panel){animation:day-out var(--dur-base) var(--ease-out) both}
 ::view-transition-new(day-panel){animation:day-in var(--dur-base) var(--ease-out) both}
