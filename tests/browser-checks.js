@@ -802,6 +802,10 @@ async (page) => {
     await p.evaluate(() => { for (const d of [4, 5, 1]) document.querySelector(`[data-day="${d}"]`).click(); });
     await p.waitForTimeout(700);
     check('cambio giorno: tocchi rapidi finiscono sull’ultimo', await p.locator('[data-day="1"]').getAttribute('aria-pressed') === 'true' && await p.evaluate(() => location.hash) === '#giorno-1');
+    // Dal giorno 1: toccare il 3 e subito il 1 (il giorno di partenza) deve finire sul 1.
+    await p.evaluate(() => { for (const d of [3, 1]) document.querySelector(`[data-day="${d}"]`).click(); });
+    await p.waitForTimeout(700);
+    check('cambio giorno: tornare subito al giorno di partenza vince l’ultimo tocco', await p.locator('[data-day="1"]').getAttribute('aria-pressed') === 'true' && await p.evaluate(() => location.hash) === '#giorno-1');
     const names = await p.evaluate(() => [getComputedStyle(document.getElementById('day-panel')).viewTransitionName, getComputedStyle(document.querySelector('.day-tab[aria-pressed=true]')).viewTransitionName]);
     check('cambio giorno: pannello e linguetta attiva hanno un nome di transizione', names.join() === 'day-panel,active-tab', names.join());
     await ctx.close();

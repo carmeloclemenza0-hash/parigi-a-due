@@ -1014,11 +1014,15 @@ window.PARIS_TRIP = {
 
   // Cambio giorno animato con le View Transitions: il pannello scivola nella direzione del giorno.
   // Senza supporto o con "Riduci movimento" il cambio resta istantaneo, come prima.
+  // `targetDay` è il giorno verso cui sta andando la pagina: state.selectedDay cambia solo
+  // dentro update(), che con la transizione parte in ritardo, e i tocchi rapidi lo vedrebbero vecchio.
   let dayTransition = null;
+  let targetDay = null;
+  const targetOrSelectedDay = () => targetDay ?? state.selectedDay;
   function selectDay(id, focus = false) {
     if (!trip.days.some(day => day.id === id)) return;
-    const animate = motionOK && typeof document.startViewTransition === 'function' && id !== state.selectedDay;
-    const forward = id > state.selectedDay;
+    const animate = motionOK && typeof document.startViewTransition === 'function' && id !== targetOrSelectedDay();
+    const forward = id > targetOrSelectedDay();
     const update = () => {
       state.selectedDay = id;
       save();
@@ -1028,18 +1032,19 @@ window.PARIS_TRIP = {
       if (focus) {
         $('day-title').focus({preventScroll:true});
         // Dentro la transizione lo scroll è istantaneo: uno smooth sotto l'animazione la farebbe slittare.
-        $('day-panel').scrollIntoView({behavior: animate || !motionOK ? 'auto' : 'smooth', block:'start'});
+        $('day-panel').scrollIntoView({behavior: animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
       }
     };
     if (!animate) { update(); return; }
     if (dayTransition) dayTransition.skipTransition();
+    targetDay = id;
     document.documentElement.dataset.dayDir = forward ? 'next' : 'prev';
     const transition = dayTransition = document.startViewTransition(update);
     // Il giorno cambia comunque dentro update(); qui si segnala solo se qualcosa va storto davvero.
     transition.updateCallbackDone.catch(error => console.error('Cambio giorno non riuscito:', error));
     // AbortError è atteso quando un tocco rapido salta la transizione precedente.
     transition.ready.catch(error => { if (error.name !== 'AbortError') console.error('Animazione del cambio giorno non riuscita:', error); });
-    const clear = () => { if (dayTransition === transition) dayTransition = null; };
+    const clear = () => { if (dayTransition === transition) { dayTransition = null; targetDay = null; } };
     transition.finished.then(clear, clear);
   }
 
@@ -1132,8 +1137,8 @@ window.PARIS_TRIP = {
     } else updateProgress();
   });
   $('pending-filter').addEventListener('change', () => renderTimeline());
-  $('prev-day').addEventListener('click', () => selectDay(state.selectedDay - 1, true));
-  $('next-day').addEventListener('click', () => selectDay(state.selectedDay + 1, true));
+  $('prev-day').addEventListener('click', () => selectDay(targetOrSelectedDay() - 1, true));
+  $('next-day').addEventListener('click', () => selectDay(targetOrSelectedDay() + 1, true));
   $('day-note').addEventListener('input', event => { state.notes[state.selectedDay] = event.target.value.slice(0, 5000); save(); });
   $('trip-note').addEventListener('input', event => { state.tripNote = event.target.value.slice(0, 20000); save(); });
   $('print-button').addEventListener('click', () => { renderPrint(); window.print(); });
