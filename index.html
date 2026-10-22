@@ -994,28 +994,36 @@ window.PARIS_TRIP = {
     return 'sun';
   }
 
-  function renderTimeline({ fade = true } = {}) {
-    const day = currentDay();
-    const pendingOnly = $('pending-filter').checked;
+  // HTML delle tappe di un giorno: lo usano il pannello vero e l'anteprima dello scorrimento.
+  function timelineMarkup(day, pendingOnly) {
     const groups = day.groups.map(group => ({...group, items: group.items.filter(item => !pendingOnly || !state.done[item.id])})).filter(group => group.items.length);
+    return groups.length ? groups.map((group, index) => `<section class="timeline-group" aria-labelledby="group-${index}"><div class="group-heading">${icon(momentIcon(group.label), 'group-icon')}<h4 id="group-${index}">${escapeHTML(group.label)}</h4><span>${escapeHTML(group.subtitle)}</span></div><ul class="timeline-items">${group.items.map(renderItem).join('')}</ul></section>`).join('') : `<div class="empty-state"><h4>Una giornata piena di ricordi.</h4><p>Hai spuntato tutte le tappe. Disattiva “Solo da fare” per rivederle.</p></div>`;
+  }
+
+  function renderTimeline({ fade = true } = {}) {
     const timeline = $('timeline');
-    timeline.innerHTML = groups.length ? groups.map((group, index) => `<section class="timeline-group" aria-labelledby="group-${index}"><div class="group-heading">${icon(momentIcon(group.label), 'group-icon')}<h4 id="group-${index}">${escapeHTML(group.label)}</h4><span>${escapeHTML(group.subtitle)}</span></div><ul class="timeline-items">${group.items.map(renderItem).join('')}</ul></section>`).join('') : `<div class="empty-state"><h4>Una giornata piena di ricordi.</h4><p>Hai spuntato tutte le tappe. Disattiva “Solo da fare” per rivederle.</p></div>`;
+    timeline.innerHTML = timelineMarkup(currentDay(), $('pending-filter').checked);
     if (revealer) for (const item of timeline.querySelectorAll('.timeline-item')) revealer.observe(item);
     if (fade && motionOK && timeline.animate) timeline.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
     updateProgress();
     document.dispatchEvent(new CustomEvent('timeline:rendered'));
   }
 
-  function updateProgress() {
-    const day = currentDay();
+  // Contatore, percentuale e barra del giorno dentro `root` (la pagina o la copia dell'anteprima).
+  function fillProgress(root, day) {
+    const q = id => root.querySelector(`#${id}`);
     const total = itemsOf(day).length;
     const completed = countDone(day);
     const pct = Math.round(completed / total * 100);
-    $('day-counter').textContent = `${completed} di ${total} tappe completate`;
-    $('progress-number').textContent = `${pct}%`;
-    $('day-progress').setAttribute('aria-valuenow', String(pct));
-    $('day-progress').setAttribute('aria-valuetext', `${completed} di ${total} tappe completate`);
-    $('day-progress').firstElementChild.style.width = `${pct}%`;
+    q('day-counter').textContent = `${completed} di ${total} tappe completate`;
+    q('progress-number').textContent = `${pct}%`;
+    q('day-progress').setAttribute('aria-valuenow', String(pct));
+    q('day-progress').setAttribute('aria-valuetext', `${completed} di ${total} tappe completate`);
+    q('day-progress').firstElementChild.style.width = `${pct}%`;
+  }
+
+  function updateProgress() {
+    fillProgress(document, currentDay());
     // Aggiorna i pulsanti senza ricrearli: focus e posizione di scorrimento restano stabili.
     for (const button of $('day-nav').querySelectorAll('[data-day]')) {
       const otherDay = trip.days.find(day => day.id === Number(button.dataset.day));
@@ -1027,28 +1035,36 @@ window.PARIS_TRIP = {
     }
   }
 
+  // Riempie il blocco del giorno (pannello + promemoria) dentro `root`: la pagina, oppure la copia usata come anteprima,
+  // anche prima che sia inserita. Cerca per id dentro `root`; tappe e avanzamento li fanno timelineMarkup e fillProgress.
+  function fillDayBlock(root, day) {
+    const q = id => root.querySelector(`#${id}`);
+    q('day-date').textContent = `Giorno ${day.id} / ${day.weekday} ${day.shortDate.replace('nov', 'novembre')} 2026`;
+    q('day-title').textContent = day.title;
+    q('day-intro').textContent = day.intro;
+    q('day-areas').textContent = day.areas;
+    q('mood-icon').innerHTML = `<use href="#i-${day.icon}"/>`;
+    q('day-art').innerHTML = `<use href="#i-${day.icon}"/>`;
+    q('mood-title').textContent = day.mood;
+    q('mood-quote').textContent = day.quote;
+    root.querySelector('.mood-card').style.backgroundColor = `var(--${day.theme})`;
+    q('day-panel').style.setProperty('--day-color', `var(--${day.theme})`);
+    q('aside-highlights').innerHTML = day.highlights.map(text => `<span>${icon('check')}${escapeHTML(text)}</span>`).join('');
+    q('day-note').value = state.notes[day.id] || '';
+    q('source-details').hidden = !day.sources.length;
+    q('source-links').innerHTML = day.sources.map(source => `<a href="${escapeHTML(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(source.title)} ↗</a>`).join('');
+    q('source-details').open = false;
+    q('prev-day').disabled = day.id === 1;
+    q('next-day').disabled = day.id === trip.days.length;
+  }
+
   function renderDay({ fade = true } = {}) {
     const day = currentDay();
-    $('day-date').textContent = `Giorno ${day.id} / ${day.weekday} ${day.shortDate.replace('nov', 'novembre')} 2026`;
-    $('day-title').textContent = day.title;
-    $('day-intro').textContent = day.intro;
-    $('day-areas').textContent = day.areas;
-    $('mood-icon').innerHTML = `<use href="#i-${day.icon}"/>`;
-    $('day-art').innerHTML = `<use href="#i-${day.icon}"/>`;
-    $('mood-title').textContent = day.mood;
-    $('mood-quote').textContent = day.quote;
-    document.querySelector('.mood-card').style.backgroundColor = `var(--${day.theme})`;
-    $('day-panel').style.setProperty('--day-color', `var(--${day.theme})`);
-    $('aside-highlights').innerHTML = day.highlights.map(text => `<span>${icon('check')}${escapeHTML(text)}</span>`).join('');
-    $('day-note').value = state.notes[day.id] || '';
+    fillDayBlock(document, day);
+    // Fuori dal blocco del giorno: la sezione "Qualche coordinata" più in basso.
     $('reminder-day-label').textContent = `Giorno ${day.id} · ${day.shortDate}`;
     $('practical-grid').innerHTML = day.practical.map(tip => `<article class="practical-card"><h3>${escapeHTML(tip.title)}</h3><p>${escapeHTML(tip.text)}</p></article>`).join('');
     $('reminders').innerHTML = day.reminders.map(text => `<span>${escapeHTML(text)}</span>`).join('');
-    $('source-details').hidden = !day.sources.length;
-    $('source-links').innerHTML = day.sources.map(source => `<a href="${escapeHTML(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(source.title)} ↗</a>`).join('');
-    $('prev-day').disabled = day.id === 1;
-    $('next-day').disabled = day.id === trip.days.length;
-    $('source-details').open = false;
     for (const button of $('day-nav').querySelectorAll('[data-day]')) button.setAttribute('aria-pressed', String(Number(button.dataset.day) === day.id));
     renderTimeline({ fade });
     updateStorageStatus();
