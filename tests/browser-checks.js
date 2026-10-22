@@ -1109,6 +1109,41 @@ async (page) => {
     await ctx.close();
   }
   {
+    // Fine dello scorrimento: le tappe sullo schermo erano già visibili nell'anteprima e non devono ripartire dalla
+    // dissolvenza. Si guarda il primo fotogramma dopo lo scambio (anteprima appena tolta), quando il lampeggio si vedrebbe.
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
+    // Il giorno sullo schermo, con le prime tappe in vista.
+    await p.locator('#day-panel .day-heading').scrollIntoViewIfNeeded();
+    await p.waitForTimeout(500);
+    const swap = await p.evaluate(() => new Promise(resolve => {
+      document.getElementById('next-day').click();
+      const look = () => {
+        if (document.querySelector('.day-preview')) { requestAnimationFrame(look); return; }
+        const item = [...document.querySelectorAll('#timeline .timeline-item')].find(el => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < window.innerHeight; });
+        resolve(item ? { visible: item.classList.contains('is-visible'), opacity: getComputedStyle(item).opacity, running: item.getAnimations().length } : null);
+      };
+      requestAnimationFrame(look);
+    }));
+    check('scorrimento: alla fine le tappe sullo schermo restano visibili, senza lampeggio', !!swap && swap.visible && swap.opacity === '1' && swap.running === 0, JSON.stringify(swap));
+    await ctx.close();
+  }
+  {
+    // La pagina scorre mentre il dito tiene il giorno: il giorno vero deve comparire dove si trova l'anteprima in quel
+    // momento, non dove era quando si è aperta.
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-2' });
+    await p.locator('#day-panel .day-heading').scrollIntoViewIfNeeded();
+    const b = await p.locator('#day-panel .day-heading').boundingBox();
+    const y = b.y + b.height / 2;
+    await drag(p, path([300, y], [100, y]), { stepMs: 40, release: false });
+    await p.evaluate(() => window.scrollBy({ top: 60, behavior: 'instant' }));
+    const previewTop = await p.evaluate(() => document.querySelector('.day-preview')?.getBoundingClientRect().top ?? null);
+    await lift(p, [100, y]);
+    await p.waitForTimeout(600);
+    const landed = await p.evaluate(() => ({ day: location.hash, top: document.querySelector('.journey-layout').getBoundingClientRect().top }));
+    check('swipe: pagina scorsa durante il gesto → il giorno vero prende il posto dell’anteprima', previewTop !== null && landed.day === '#giorno-3' && Math.abs(landed.top - previewTop) <= 2, JSON.stringify({ previewTop, ...landed }));
+    await ctx.close();
+  }
+  {
     const { ctx, p } = await open({ reducedMotion: 'reduce', isMobile: true, hasTouch: true }, { hash: '#giorno-2' });
     await p.locator('#day-panel .day-heading').scrollIntoViewIfNeeded();
     const b = await p.locator('#day-panel .day-heading').boundingBox();

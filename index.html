@@ -214,8 +214,8 @@ textarea{max-width:100%}
 @font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:500;font-display:swap;src:url(fonts/cormorant-garamond-500-italic.woff2) format('woff2')}
 @font-face{font-family:'Caveat';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/caveat-500.woff2) format('woff2')}
 :root{--display:'Cormorant Garamond',Georgia,serif;--hand:'Caveat','Segoe Print','Bradley Hand',cursive}
-/* Grana leggera, come la carta di un taccuino. */
-body{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32 0 0 0 0 .29 0 0 0 0 .2 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")}
+/* Grana leggera, come la carta di un taccuino (anche sull'anteprima del cambio giorno, che deve sembrare la pagina). */
+body,.day-preview{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32 0 0 0 0 .29 0 0 0 0 .2 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E")}
 /* I titoli grandi passano a Cormorant; le piccole scritte corsive restano su Georgia, più leggibile sotto i 14px. */
 h1,h2,h3,.day-tab strong,.footer-brand{font-family:var(--display);font-weight:500}
 .hero h1{font-size:clamp(84px,8.2vw,118px);letter-spacing:-.03em;line-height:.95}
@@ -269,7 +269,8 @@ h1 em{display:inline-block}
 .itinerary-section{position:relative;overflow-x:clip}
 /* Lo scorrimento verticale e lo zoom restano al browser; quello orizzontale lo gestisce lo swipe. */
 .journey-layout{touch-action:pan-y pinch-zoom}
-.day-preview{position:absolute;z-index:1;margin:0;height:100svh;overflow:hidden;pointer-events:none}
+/* Fondo pieno come la pagina (colore e grana, vedi sotto), così l'anteprima copre la sezione che le sta dietro. */
+.day-preview{position:absolute;z-index:1;margin:0;height:100svh;overflow:hidden;pointer-events:none;background-color:var(--paper)}
 /* La linguetta attiva scivola sopra le altre (animazione dello script). */
 .day-tab[aria-pressed=true]{z-index:1}
 /* Il titolo riceve il focus dopo il cambio giorno (così VoiceOver legge il giorno nuovo), ma non è un comando: niente contorno. */
@@ -412,7 +413,7 @@ html[data-theme=dark]{color-scheme:dark;--paper:#121c18;--white:#1a2721;--ink:#e
   --rose:#33241f;--sage:#1f2d27;--lavender:#29253a;--sand:#2e281c;--blue:#1b2b2e;
   --band-text:#c3c9bc;--band-accent:#eaa98d;--route:#7a5546;--note-paper:#18241f;--note-line:#26352d;--note-margin:#6e3f33;--notebook:#151f1b}
 html[data-theme=dark] ::selection{background:#5b3a2e;color:var(--ink)}
-html[data-theme=dark] body{background-image:none}
+html[data-theme=dark] body,html[data-theme=dark] .day-preview{background-image:none}
 html[data-theme=dark] .button.primary:hover{background:#b7d6c1}
 html[data-theme=dark] .day-tab:hover{background:var(--white);border-color:#4a5d51}
 html[data-theme=dark] .day-tab[aria-pressed=true] .tab-top,html[data-theme=dark] .day-tab[aria-pressed=true] .tab-date{color:#1a2721}
@@ -1068,6 +1069,9 @@ window.PARIS_TRIP = {
   // Cambio in corso: { id, finish() }. I tocchi rapidi lo chiudono subito e ripartono dal suo giorno.
   let slide = null;
   const targetOrSelectedDay = () => slide ? slide.id : state.selectedDay;
+  // Ritorno a posto di uno swipe in corso (lo usano lo swipe e selectDay). Dichiarato qui, prima di selectDay, così non
+  // c'è il rischio di usarlo prima della sua riga (zona morta temporale di `let`).
+  let springBack = null;
 
   // Anteprima del giorno `id`: copia del blocco vero riempita con lo stesso codice del giorno vero.
   // Senza id (devono restare unici), inerte e nascosta ai lettori di schermo; le tappe già "rivelate".
@@ -1113,6 +1117,21 @@ window.PARIS_TRIP = {
     return { id, el, top, dx: 0 };
   }
 
+  // Alla fine dello scorrimento le tappe del giorno vero nascono con la dissolvenza da rifare, mentre nell'anteprima erano
+  // già visibili: quelle sullo schermo si segnano subito come rivelate, senza transizione, così non lampeggiano. Quelle
+  // fuori dallo schermo non si sono viste e restano all'IntersectionObserver: compariranno in dissolvenza scorrendo.
+  function keepShownStops() {
+    if (!revealer) return;
+    for (const item of $('timeline').querySelectorAll('.timeline-item')) {
+      const box = item.getBoundingClientRect();
+      if (box.bottom <= 0 || box.top >= window.innerHeight) continue;
+      revealer.unobserve(item);
+      item.classList.add('is-visible');
+      // Lo stile con opacità 0 è già calcolato (la misura sopra lo forza): la transizione partirebbe, si chiude subito.
+      for (const animation of item.getAnimations()) animation.finish();
+    }
+  }
+
   // La linguetta del giorno nuovo diventa attiva subito e scivola dalla posizione della vecchia.
   function markActiveTab(id) {
     const old = $('day-nav').querySelector('[aria-pressed=true]');
@@ -1131,6 +1150,8 @@ window.PARIS_TRIP = {
     // Tocco sul giorno verso cui si sta già scorrendo: niente da fare (chiuderlo e rifare sarebbe un doppio render).
     if (slide && slide.id === id) return;
     if (slide) slide.finish();
+    // Un ritorno a posto ancora in corso (swipe lasciato a metà) si chiude subito: il cambio parte dal blocco fermo.
+    if (springBack) springBack();
     const animate = canAnimate() && id !== state.selectedDay;
     const update = () => {
       state.selectedDay = id;
@@ -1158,10 +1179,18 @@ window.PARIS_TRIP = {
       slide = null;
       for (const animation of animations) animation.cancel();
       dayBlock.style.transform = '';
-      update();
-      // Il giorno vero prende il posto dell'anteprima, nello stesso punto dello schermo.
-      window.scrollBy({ top: dayBlock.getBoundingClientRect().top - view.top, behavior: 'instant' });
-      if (view.el) view.el.remove();
+      // Cima dell'anteprima letta adesso: l'anteprima sta nel documento e, se la pagina è scorsa durante il gesto, non
+      // è più dove era all'apertura (view.top è una coordinata dello schermo di allora).
+      const target = view.el ? view.el.getBoundingClientRect().top : view.top;
+      // L'anteprima si toglie comunque, anche se il render del giorno vero fallisce (l'errore arriva lo stesso in console).
+      try {
+        update();
+        // Il giorno vero prende il posto dell'anteprima, nello stesso punto dello schermo.
+        window.scrollBy({ top: dayBlock.getBoundingClientRect().top - target, behavior: 'instant' });
+        keepShownStops();
+      } finally {
+        if (view.el) view.el.remove();
+      }
     };
     slide = { id, finish };
     Promise.all(animations.map(animation => animation.finished)).then(finish, error => {
@@ -1272,8 +1301,6 @@ window.PARIS_TRIP = {
   // al rilascio vale 0 (niente colpo rapido) e decide solo lo spostamento.
   const SWIPE_FLICK_STALE = 100;
   let swipe = null;
-  // Animazione di ritorno a posto in corso (si annulla se il dito riparte).
-  let springBack = null;
 
   function dragTo(gesture, dx) {
     const id = state.selectedDay + (dx < 0 ? 1 : -1);
