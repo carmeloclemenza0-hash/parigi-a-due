@@ -921,6 +921,18 @@ async (page) => {
     await ctx.close();
   }
 
+  // 17. Cambio giorno a schermo intero
+  {
+    // Da tastiera il focus programmatico è "visibile" per il browser: è il caso in cui il bordo si vede anche in Chromium.
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
+    await p.locator('#next-day').focus();
+    await p.keyboard.press('Enter');
+    await p.waitForTimeout(600);
+    const focus = await p.evaluate(() => ({ id: document.activeElement.id, outline: getComputedStyle(document.activeElement).outlineStyle }));
+    check('titolo del giorno: focus senza bordo', focus.id === 'day-title' && focus.outline === 'none', JSON.stringify(focus));
+    await ctx.close();
+  }
+
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));
   const failed = results.filter(r => r.startsWith('FAIL')).length;
   return `${results.join('\n')}\n\n${results.length - failed}/${results.length} controlli superati`;

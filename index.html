@@ -265,6 +265,8 @@ h1 em{display:inline-block}
 .reveal .timeline-item.is-visible{opacity:1;transform:none}
 /* Cambio giorno: il pannello esce e il nuovo entra di lato (direzione da data-day-dir), la linguetta attiva scivola. */
 #day-panel{view-transition-name:day-panel}
+/* Il titolo riceve il focus dopo il cambio giorno (così VoiceOver legge il giorno nuovo), ma non è un comando: niente contorno. */
+#day-title:focus{outline:none}
 .day-tab[aria-pressed=true]{view-transition-name:active-tab}
 html{--day-shift:30px}html[data-day-dir=prev]{--day-shift:-30px}
 @keyframes day-out{to{opacity:0;transform:translateX(calc(var(--day-shift) * -1))}}
