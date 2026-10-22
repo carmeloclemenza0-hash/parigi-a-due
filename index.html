@@ -1123,12 +1123,15 @@ window.PARIS_TRIP = {
     tab.animate([{ transform: `translateX(${from - tab.getBoundingClientRect().left}px)` }, { transform: 'none' }], { duration: durBase(), easing: 'cubic-bezier(.65,0,.35,1)' });
   }
 
+  // Si anima solo con movimento consentito e Web Animations API presente; altrimenti tutto avviene all'istante.
+  const canAnimate = () => motionOK && typeof dayBlock.animate === 'function';
+
   function selectDay(id, focus = false, peek = null) {
     if (!trip.days.some(day => day.id === id)) return;
     // Tocco sul giorno verso cui si sta già scorrendo: niente da fare (chiuderlo e rifare sarebbe un doppio render).
     if (slide && slide.id === id) return;
     if (slide) slide.finish();
-    const animate = motionOK && typeof dayBlock.animate === 'function' && id !== state.selectedDay;
+    const animate = canAnimate() && id !== state.selectedDay;
     const update = () => {
       state.selectedDay = id;
       save();
@@ -1265,6 +1268,9 @@ window.PARIS_TRIP = {
   // pan-y lascia il verticale al browser). Al rilascio si cambia giorno se lo spostamento supera 1/3 dello schermo o se
   // il colpo è rapido; altrimenti il blocco torna a posto. Ai bordi del viaggio fa l'elastico. I listener sono passivi.
   const SWIPE_LOCK = 10, SWIPE_FLICK_SPEED = 0.5, SWIPE_FLICK_MIN = 30, SWIPE_EDGE_MAX = 60;
+  // Se il dito resta fermo più di SWIPE_FLICK_STALE ms prima di alzarsi, la velocità misurata nei touchmove è vecchia:
+  // al rilascio vale 0 (niente colpo rapido) e decide solo lo spostamento.
+  const SWIPE_FLICK_STALE = 100;
   let swipe = null;
   // Animazione di ritorno a posto in corso (si annulla se il dito riparte).
   let springBack = null;
@@ -1299,7 +1305,8 @@ window.PARIS_TRIP = {
       if (gesture.peek && gesture.peek.el) gesture.peek.el.remove();
     };
     springBack = cleanup;
-    if (!gesture.shown) { cleanup(); return; }
+    // Senza movimento visibile o senza Web Animations API la pulizia è immediata.
+    if (!gesture.shown || !canAnimate()) { cleanup(); return; }
     animations = elements.map(element => element.animate([{ transform: `translateX(${gesture.shown}px)` }, { transform: 'translateX(0)' }], { duration: durBase(), easing: 'cubic-bezier(.2,.7,.2,1)' }));
     for (const element of elements) element.style.transform = '';
     Promise.all(animations.map(animation => animation.finished)).then(cleanup, error => {
@@ -1309,11 +1316,12 @@ window.PARIS_TRIP = {
   }
 
   dayBlock.addEventListener('touchstart', event => {
-    // Un gesto ancora aperto (es. secondo dito appoggiato) torna a posto; un cambio o un ritorno in corso si chiudono
-    // subito: il nuovo gesto parte dal giorno giusto.
-    if (swipe) { const gesture = swipe; swipe = null; release(gesture); }
+    // Un cambio o un ritorno in corso si chiudono subito: il nuovo gesto parte dal giorno giusto. Poi un gesto ancora
+    // aperto (es. secondo dito appoggiato) torna a posto con la sua animazione, che non va annullata: per questo il
+    // rilascio viene per ultimo.
     if (slide) slide.finish();
     if (springBack) springBack();
+    if (swipe) { const gesture = swipe; swipe = null; release(gesture); }
     const touch = event.touches[0];
     const fromEdge = touch.clientX < 24 || touch.clientX > window.innerWidth - 24;
     // Con lo zoom a pellizco un dito che trascina serve a spostarsi nella pagina, non a cambiare giorno.
@@ -1337,7 +1345,8 @@ window.PARIS_TRIP = {
     if (dt > 0) swipe.speed = (touch.clientX - swipe.lastX) / dt;
     swipe.lastX = touch.clientX;
     swipe.lastT = event.timeStamp;
-    if (motionOK) dragTo(swipe, dx);
+    swipe.dx = dx;
+    if (canAnimate()) dragTo(swipe, dx);
   }, { passive: true });
 
   dayBlock.addEventListener('touchcancel', () => {
@@ -1350,13 +1359,18 @@ window.PARIS_TRIP = {
     if (!swipe) return;
     const gesture = swipe; swipe = null;
     const touch = event.changedTouches[0];
-    const dx = touch.clientX - gesture.x0;
+    // Se il blocco è già stato spostato, si decide con il dx dell'ultimo touchmove (quello che si vede sullo schermo):
+    // il punto del touchend può differire di qualche px e, cambiando segno, toglierebbe l'anteprima facendo saltare il
+    // blocco.
+    const dx = gesture.axis === 'x' && gesture.shown ? gesture.dx : touch.clientX - gesture.x0;
     const dy = touch.clientY - gesture.y0;
+    // Un dito fermo da troppo tempo prima di alzarsi non è un colpo rapido.
+    const speed = event.timeStamp - gesture.lastT > SWIPE_FLICK_STALE ? 0 : gesture.speed;
     // Senza touchmove (gesti brevissimi) la direzione si decide qui, con la stessa regola.
     const axis = gesture.axis || (Math.max(Math.abs(dx), Math.abs(dy)) >= SWIPE_LOCK && Math.abs(dx) > Math.abs(dy) ? 'x' : 'y');
     const id = state.selectedDay + (dx < 0 ? 1 : -1);
     const far = Math.abs(dx) >= window.innerWidth / 3;
-    const flick = Math.abs(dx) >= SWIPE_FLICK_MIN && Math.sign(gesture.speed) === Math.sign(dx) && Math.abs(gesture.speed) >= SWIPE_FLICK_SPEED;
+    const flick = Math.abs(dx) >= SWIPE_FLICK_MIN && Math.sign(speed) === Math.sign(dx) && Math.abs(speed) >= SWIPE_FLICK_SPEED;
     if (axis === 'x' && (far || flick) && trip.days.some(day => day.id === id)) {
       // L'anteprima giusta è quella della direzione finale del dito (il gesto può aver cambiato verso).
       const peek = gesture.peek && gesture.peek.id === id ? gesture.peek : null;

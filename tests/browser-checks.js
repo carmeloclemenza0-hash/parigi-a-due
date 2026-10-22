@@ -1042,11 +1042,14 @@ async (page) => {
     const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-2' });
     const titles = await p.evaluate(() => window.PARIS_TRIP.days.map(day => day.title));
     const startY = async () => { await p.locator('#day-panel .day-heading').scrollIntoViewIfNeeded(); const b = await p.locator('#day-panel .day-heading').boundingBox(); return b.y + b.height / 2; };
+    // Ogni sotto-test parte dal suo giorno (non da quello lasciato dal test prima) e lo restituisce, da verificare.
+    const startAt = async n => { await p.evaluate(n => { location.hash = `#giorno-${n}`; }, n); await p.waitForTimeout(700); return (await dragState(p)).day; };
+    let start = await startAt(2);
     let y = await startY();
     // Trascinamento lento a metà, dito ancora giù: il blocco segue il dito e l'anteprima del 3 lo accompagna.
     await drag(p, path([300, y], [200, y]), { stepMs: 40, release: false });
     const held = await dragState(p);
-    check('swipe: il blocco segue il dito', held.block === -100, JSON.stringify(held));
+    check('swipe: il blocco segue il dito', start === 2 && held.block === -100, JSON.stringify({ start, ...held }));
     check('swipe: l’anteprima del giorno dopo entra insieme', held.preview === -100 && held.title === titles[2], JSON.stringify(held));
     // Rilascio lento a 100 px (meno di 1/3 di 390): torna tutto a posto.
     await lift(p, [200, y]);
@@ -1054,34 +1057,50 @@ async (page) => {
     const back = await dragState(p);
     check('swipe: lasciato a metà torna indietro', back.block === 0 && back.preview === null && back.day === 2, JSON.stringify(back));
     // Lungo e lento: cambia giorno.
+    start = await startAt(2);
     y = await startY();
     await drag(p, path([300, y], [120, y]), { stepMs: 40 });
     await p.waitForTimeout(600);
-    check('swipe: lungo e lento → giorno dopo', (await dragState(p)).day === 3);
+    const long = await dragState(p);
+    check('swipe: lungo e lento → giorno dopo', start === 2 && long.day === 3 && long.block === 0 && long.preview === null, JSON.stringify({ start, ...long }));
     // Corto ma rapido (50 px in ~24 ms): cambia giorno.
+    start = await startAt(3);
     y = await startY();
     await drag(p, path([150, y], [200, y], 3), { stepMs: 8 });
     await p.waitForTimeout(600);
-    check('swipe: colpo rapido → giorno prima', (await dragState(p)).day === 2);
+    const flick = await dragState(p);
+    check('swipe: colpo rapido → giorno prima', start === 3 && flick.day === 2 && flick.block === 0 && flick.preview === null, JSON.stringify({ start, ...flick }));
+    // Veloce, poi il dito si ferma e solo dopo si alza: la velocità vecchia non conta più, il blocco torna a posto.
+    start = await startAt(3);
+    y = await startY();
+    await drag(p, path([150, y], [200, y], 3), { stepMs: 8, release: false });
+    await p.waitForTimeout(200);
+    await lift(p, [200, y]);
+    await p.waitForTimeout(600);
+    const paused = await dragState(p);
+    check('swipe: veloce, pausa, rilascio → resta', start === 3 && paused.day === 3 && paused.block === 0 && paused.preview === null, JSON.stringify({ start, ...paused }));
     // Verticale: nessuno spostamento laterale, nessuna anteprima.
+    start = await startAt(2);
     y = await startY();
     await drag(p, path([200, y], [215, y + 150]), { stepMs: 16, release: false });
     const vertical = await dragState(p);
-    check('swipe: gesto verticale non sposta il blocco', vertical.block === 0 && vertical.preview === null, JSON.stringify(vertical));
+    check('swipe: gesto verticale non sposta il blocco', start === 2 && vertical.block === 0 && vertical.preview === null, JSON.stringify({ start, ...vertical }));
     await lift(p, [215, y + 150]);
     check('swipe: dopo il gesto verticale stesso giorno', (await dragState(p)).day === 2);
     // Anche partendo dal riquadro del mood (fa parte del blocco del giorno).
+    start = await startAt(2);
     await p.locator('.mood-card').scrollIntoViewIfNeeded();
     const mb = await p.locator('.mood-card').boundingBox();
     await drag(p, path([300, mb.y + 20], [100, mb.y + 20]), { stepMs: 16 });
     await p.waitForTimeout(600);
-    check('swipe: funziona anche dal riquadro del mood', (await dragState(p)).day === 3);
+    const mood = await dragState(p);
+    check('swipe: funziona anche dal riquadro del mood', start === 2 && mood.day === 3, JSON.stringify({ start, ...mood }));
     // Bordi del viaggio: elastico, niente anteprima, nessun cambio.
-    await p.evaluate(() => { location.hash = '#giorno-1'; }); await p.waitForTimeout(700);
+    start = await startAt(1);
     y = await startY();
     await drag(p, path([100, y], [300, y]), { stepMs: 16, release: false });
     const edge = await dragState(p);
-    check('swipe: prima del giorno 1 fa l’elastico (al massimo 60 px)', edge.block > 0 && edge.block <= 60 && edge.preview === null, JSON.stringify(edge));
+    check('swipe: prima del giorno 1 fa l’elastico (al massimo 60 px)', start === 1 && edge.block > 0 && edge.block <= 60 && edge.preview === null, JSON.stringify({ start, ...edge }));
     await lift(p, [300, y]);
     await p.waitForTimeout(600);
     const edgeAfter = await dragState(p);
