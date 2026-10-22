@@ -171,7 +171,7 @@ async (page) => {
     await p.locator('.day-heading').first().screenshot({ path: 'C:/Users/Carme/Desktop/AIWORKSPACE/Vario/.playwright-mcp/shot-day5.png' });
     // Le linguette cambiano altezza a seconda dello scroll: Playwright non le troverebbe mai "stabili" se deve scorrere lui.
     // Le si porta prima in vista a mano (sentinella ancora visibile = non compatte).
-    await p.evaluate(() => window.scrollTo(0, document.getElementById('nav-sentinel').offsetTop - 200)); await p.waitForTimeout(700);
+    await p.evaluate(() => window.scrollTo(0, document.getElementById('nav-sentinel').getBoundingClientRect().top + scrollY - 200)); await p.waitForTimeout(700);
     await p.locator('#day-nav').screenshot({ path: 'C:/Users/Carme/Desktop/AIWORKSPACE/Vario/.playwright-mcp/shot-nav.png' });
     await ctx.close();
   }
@@ -787,20 +787,9 @@ async (page) => {
   }
   {
     const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
-    // Si conta quante volte il sito avvia una View Transition (il browser di test la supporta).
-    await p.evaluate(() => {
-      window.__vt = 0;
-      const original = document.startViewTransition.bind(document);
-      document.startViewTransition = callback => { window.__vt++; return original(callback); };
-    });
     await p.locator('[data-day="3"]').tap();
-    await p.waitForTimeout(500);
-    const dir = await p.evaluate(() => document.documentElement.dataset.dayDir);
-    check('cambio giorno: View Transition avviata, direzione avanti', await p.evaluate(() => window.__vt) === 1 && dir === 'next', `vt ${await p.evaluate(() => window.__vt)}, dir ${dir}`);
+    await p.waitForTimeout(600);
     check('cambio giorno: giorno e indirizzo aggiornati', await p.locator('[data-day="3"]').getAttribute('aria-pressed') === 'true' && await p.evaluate(() => location.hash) === '#giorno-3');
-    await p.locator('#prev-day').tap();
-    await p.waitForTimeout(500);
-    check('cambio giorno: direzione indietro', await p.evaluate(() => document.documentElement.dataset.dayDir) === 'prev' && await p.locator('[data-day="2"]').getAttribute('aria-pressed') === 'true');
     // Tocchi rapidi: vince l'ultimo, nessun errore (gli errori in console li raccoglie già `open`).
     await p.evaluate(() => { for (const d of [4, 5, 1]) document.querySelector(`[data-day="${d}"]`).click(); });
     await p.waitForTimeout(700);
@@ -809,22 +798,21 @@ async (page) => {
     await p.evaluate(() => { for (const d of [3, 1]) document.querySelector(`[data-day="${d}"]`).click(); });
     await p.waitForTimeout(700);
     check('cambio giorno: tornare subito al giorno di partenza vince l’ultimo tocco', await p.locator('[data-day="1"]').getAttribute('aria-pressed') === 'true' && await p.evaluate(() => location.hash) === '#giorno-1');
-    const names = await p.evaluate(() => [getComputedStyle(document.getElementById('day-panel')).viewTransitionName, getComputedStyle(document.querySelector('.day-tab[aria-pressed=true]')).viewTransitionName]);
-    check('cambio giorno: pannello e linguetta attiva hanno un nome di transizione', names.join() === 'day-panel,active-tab', names.join());
-    // La barra ha un nome suo (e unico) così resta sopra il pannello durante la transizione.
-    const navName = await p.evaluate(() => getComputedStyle(document.getElementById('day-nav')).viewTransitionName);
-    check('cambio giorno: la barra delle linguette ha un nome di transizione', navName === 'day-nav', navName);
+    // "Giorno successivo" premuto tre volte di fila: dal giorno 1 si arriva al 4.
+    await p.evaluate(() => { for (let i = 0; i < 3; i++) document.getElementById('next-day').click(); });
+    await p.waitForTimeout(700);
+    check('cambio giorno: “Giorno successivo” rapido tre volte → giorno 4', await p.locator('[data-day="4"]').getAttribute('aria-pressed') === 'true');
     await ctx.close();
   }
   {
     const { ctx, p } = await open({ reducedMotion: 'reduce', isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
-    await p.evaluate(() => {
-      window.__vt = 0;
-      const original = document.startViewTransition.bind(document);
-      document.startViewTransition = callback => { window.__vt++; return original(callback); };
-    });
     await p.locator('[data-day="2"]').tap();
-    check('movimento ridotto: cambio giorno istantaneo, senza View Transition', await p.evaluate(() => window.__vt) === 0 && await p.locator('[data-day="2"]').getAttribute('aria-pressed') === 'true');
+    // Subito, senza attese: con "Riduci movimento" il cambio è istantaneo e non c'è nessuna animazione dello script.
+    const r = await p.evaluate(() => {
+      const js = el => el.getAnimations().filter(a => a.constructor.name === 'Animation').length;
+      return { day: document.querySelector('.day-tab[aria-pressed=true]').dataset.day, preview: !!document.querySelector('.day-preview'), anims: js(document.querySelector('.journey-layout')) + js(document.querySelector('.day-tab[aria-pressed=true]')) };
+    });
+    check('movimento ridotto: cambio giorno istantaneo, senza scorrimento', r.day === '2' && !r.preview && r.anims === 0, JSON.stringify(r));
     await ctx.close();
   }
 
@@ -878,7 +866,7 @@ async (page) => {
     // Compattarsi non deve spostare il contenuto: posizione nel documento prima/dopo, scrollY invariato, nessuna oscillazione.
     await p.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' })); await p.waitForTimeout(400);
     const before = await p.evaluate(() => {
-      window.scrollTo({ top: document.getElementById('nav-sentinel').offsetTop + 60, behavior: 'instant' });
+      window.scrollTo({ top: document.getElementById('nav-sentinel').getBoundingClientRect().top + scrollY + 60, behavior: 'instant' });
       return { y: scrollY, docTop: document.getElementById('timeline').getBoundingClientRect().top + scrollY };
     });
     const samples = [];
@@ -930,6 +918,72 @@ async (page) => {
     await p.waitForTimeout(600);
     const focus = await p.evaluate(() => ({ id: document.activeElement.id, outline: getComputedStyle(document.activeElement).outlineStyle }));
     check('titolo del giorno: focus senza bordo', focus.id === 'day-title' && focus.outline === 'none', JSON.stringify(focus));
+    await ctx.close();
+  }
+  {
+    // Giorno 2 aperto, con la prima tappa del giorno 3 già fatta: nell'anteprima deve risultare spuntata.
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-2' });
+    const day3 = await p.evaluate(() => ({ title: window.PARIS_TRIP.days[2].title, stop: window.PARIS_TRIP.days[2].groups[0].items[0].id }));
+    await p.evaluate(stop => localStorage.setItem('parigi-a-due-2026-v1', JSON.stringify({ version: 1, selectedDay: 2, done: { [stop]: true }, notes: {}, tripNote: '' })), day3.stop);
+    await p.reload();
+    // A metà del giorno 2: il giorno 3 deve comunque aprirsi dal suo inizio.
+    await p.locator('#timeline .timeline-item').nth(3).scrollIntoViewIfNeeded();
+    await p.waitForTimeout(300);
+    const dupesBefore = await p.evaluate(() => { const ids = [...document.querySelectorAll('[id]')].map(e => e.id); return ids.length - new Set(ids).size; });
+    // Si ferma l'animazione al primo fotogramma per guardarla.
+    await p.evaluate(() => { document.getElementById('next-day').click(); for (const a of document.getAnimations()) a.pause(); });
+    const mid = await p.evaluate(() => {
+      const preview = document.querySelector('.day-preview');
+      const ids = [...document.querySelectorAll('[id]')].map(e => e.id);
+      const js = el => el.getAnimations().filter(a => a.constructor.name === 'Animation').length;
+      const tab = document.querySelector('.day-tab[aria-pressed=true]');
+      return {
+        preview: !!preview,
+        hidden: !!preview && preview.getAttribute('aria-hidden') === 'true' && preview.inert === true,
+        title: preview?.querySelector('.day-heading h3')?.textContent,
+        done: !!preview?.querySelector('.timeline-item.is-done .stop-check:checked'),
+        visible: !!preview && [...preview.querySelectorAll('.timeline-item')].every(item => item.classList.contains('is-visible')),
+        noIds: !!preview && preview.querySelectorAll('[id]').length === 0 && !preview.id,
+        dupes: ids.length - new Set(ids).size,
+        blockMoving: js(document.querySelector('.journey-layout')),
+        previewMoving: preview ? js(preview) : 0,
+        tab: tab.dataset.day,
+        tabMoving: js(tab),
+        startsRight: !!preview && preview.getBoundingClientRect().left >= window.innerWidth - 1,
+        noOverflow: document.documentElement.scrollWidth <= window.innerWidth
+      };
+    });
+    check('scorrimento: anteprima del giorno 3 con titolo vero', mid.preview && mid.title === day3.title, JSON.stringify(mid));
+    check('scorrimento: anteprima nascosta ai lettori di schermo e inerte', mid.hidden);
+    check('scorrimento: anteprima con le spunte e le tappe visibili', mid.done && mid.visible);
+    check('scorrimento: anteprima senza id, nessun id doppio', mid.noIds && mid.dupes === dupesBefore, `doppi ${mid.dupes} (prima ${dupesBefore})`);
+    check('scorrimento: blocco e anteprima si muovono insieme', mid.blockMoving === 1 && mid.previewMoving === 1);
+    check('scorrimento: giorno dopo entra da destra', mid.startsRight);
+    check('scorrimento: linguetta attiva già sul 3 e in movimento', mid.tab === '3' && mid.tabMoving === 1);
+    check('scorrimento: niente scorrimento laterale della pagina', mid.noOverflow);
+    await p.evaluate(() => { for (const a of document.getAnimations()) a.play(); });
+    await p.waitForTimeout(600);
+    const after = await p.evaluate(() => {
+      const nav = document.getElementById('day-nav');
+      const block = document.querySelector('.journey-layout');
+      return {
+        preview: !!document.querySelector('.day-preview'),
+        hash: location.hash,
+        title: document.getElementById('day-title').textContent,
+        focus: document.activeElement.id,
+        gap: Math.round(block.getBoundingClientRect().top - nav.getBoundingClientRect().bottom - parseFloat(getComputedStyle(nav).marginBottom)),
+        transform: getComputedStyle(block).transform
+      };
+    });
+    check('scorrimento: alla fine giorno 3 vero, anteprima tolta, focus sul titolo', !after.preview && after.hash === '#giorno-3' && after.title === day3.title && after.focus === 'day-title' && after.transform === 'none', JSON.stringify(after));
+    check('scorrimento: il giorno 3 si apre dall’inizio, sotto le linguette', Math.abs(after.gap) <= 3, `scarto ${after.gap}px`);
+    // Indietro: l'anteprima entra da sinistra.
+    await p.evaluate(() => { document.getElementById('prev-day').click(); for (const a of document.getAnimations()) a.pause(); });
+    const back = await p.evaluate(() => document.querySelector('.day-preview')?.getBoundingClientRect().right);
+    check('scorrimento: giorno prima entra da sinistra', back !== undefined && back <= 1, String(back));
+    await p.evaluate(() => { for (const a of document.getAnimations()) a.play(); });
+    await p.waitForTimeout(600);
+    check('scorrimento: tornato al giorno 2', await p.evaluate(() => location.hash) === '#giorno-2');
     await ctx.close();
   }
 

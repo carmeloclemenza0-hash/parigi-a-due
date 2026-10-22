@@ -263,27 +263,17 @@ h1 em{display:inline-block}
 :root{--dur-fast:.2s;--dur-base:.3s;--dur-slow:.4s;--ease-out:cubic-bezier(.2,.7,.2,1);--ease-in-out:cubic-bezier(.65,0,.35,1)}
 .reveal .timeline-item{opacity:0;transform:translateY(14px);transition:opacity var(--dur-slow) var(--ease-out) var(--stagger,0ms),transform var(--dur-slow) var(--ease-out) var(--stagger,0ms)}
 .reveal .timeline-item.is-visible{opacity:1;transform:none}
-/* Cambio giorno: il pannello esce e il nuovo entra di lato (direzione da data-day-dir), la linguetta attiva scivola. */
-#day-panel{view-transition-name:day-panel}
+/* Cambio giorno: il blocco del giorno scorre di lato e la sua anteprima (.day-preview, copia del blocco riempita con il
+   giorno vicino) entra dal lato opposto; li muove lo script. La sezione taglia ciò che esce dallo schermo: clip e non
+   hidden, perché hidden creerebbe un contenitore di scroll e le linguette sticky smetterebbero di attaccarsi. */
+.itinerary-section{position:relative;overflow-x:clip}
+/* Lo scorrimento verticale e lo zoom restano al browser; quello orizzontale lo gestisce lo swipe. */
+.journey-layout{touch-action:pan-y pinch-zoom}
+.day-preview{position:absolute;z-index:1;margin:0;height:100svh;overflow:hidden;pointer-events:none}
+/* La linguetta attiva scivola sopra le altre (animazione dello script). */
+.day-tab[aria-pressed=true]{z-index:1}
 /* Il titolo riceve il focus dopo il cambio giorno (così VoiceOver legge il giorno nuovo), ma non è un comando: niente contorno. */
 #day-title:focus{outline:none}
-.day-tab[aria-pressed=true]{view-transition-name:active-tab}
-html{--day-shift:30px}html[data-day-dir=prev]{--day-shift:-30px}
-@keyframes day-out{to{opacity:0;transform:translateX(calc(var(--day-shift) * -1))}}
-@keyframes day-in{from{opacity:0;transform:translateX(var(--day-shift))}}
-/* Il resto della pagina cambia subito: una dissolvenza dell'intera pagina mescolerebbe due posizioni di scroll diverse (il pannello torna in cima). */
-::view-transition-group(active-tab){animation-duration:var(--dur-base);animation-timing-function:var(--ease-in-out)}
-::view-transition-old(root){display:none}
-::view-transition-new(root){animation:none}
-::view-transition-group(day-panel){animation:none}
-::view-transition-old(day-panel){animation:day-out var(--dur-base) var(--ease-out) both}
-::view-transition-new(day-panel){animation:day-in var(--dur-base) var(--ease-out) both}
-/* Nel livello della transizione i gruppi si dipingono nell'ordine del documento: dando un nome anche alla barra (ferma, senza animazione)
-   resta sopra il pannello che scorre, e la linguetta attiva, che sta dentro la barra, resta sopra la barra. Solo #day-nav: il nome deve essere unico. */
-#day-nav{view-transition-name:day-nav}
-::view-transition-group(day-nav){animation:none}
-::view-transition-old(day-nav){display:none}
-::view-transition-new(day-nav){animation:none}
 
 /* Sul telefono le linguette sticky si compattano quando si attaccano in alto (lo decide lo script con la sentinella). */
 .nav-sentinel{height:1px;margin-bottom:-1px}
@@ -1070,40 +1060,107 @@ window.PARIS_TRIP = {
     updateStorageStatus();
   }
 
-  // Cambio giorno animato con le View Transitions: il pannello scivola nella direzione del giorno.
-  // Senza supporto o con "Riduci movimento" il cambio resta istantaneo, come prima.
-  // `targetDay` è il giorno verso cui sta andando la pagina: state.selectedDay cambia solo
-  // dentro update(), che con la transizione parte in ritardo, e i tocchi rapidi lo vedrebbero vecchio.
-  let dayTransition = null;
-  let targetDay = null;
-  const targetOrSelectedDay = () => targetDay ?? state.selectedDay;
-  function selectDay(id, focus = false) {
+  // Cambio giorno animato: il blocco del giorno (pannello + promemoria) esce di lato e l'anteprima del giorno nuovo entra
+  // al suo posto; alla fine il giorno vero sostituisce l'anteprima nello stesso punto dello schermo, cioè dal suo inizio.
+  // Con "Riduci movimento" (o senza Web Animations API) il cambio resta istantaneo, come prima.
+  const dayBlock = document.querySelector('.journey-layout');
+  const durBase = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-base')) * 1000;
+  // Cambio in corso: { id, finish() }. I tocchi rapidi lo chiudono subito e ripartono dal suo giorno.
+  let slide = null;
+  const targetOrSelectedDay = () => slide ? slide.id : state.selectedDay;
+
+  // Anteprima del giorno `id`: copia del blocco vero riempita con lo stesso codice del giorno vero.
+  // Senza id (devono restare unici), inerte e nascosta ai lettori di schermo; le tappe già "rivelate".
+  function buildPreview(id) {
+    const day = trip.days.find(item => item.id === id);
+    const preview = dayBlock.cloneNode(true);
+    fillDayBlock(preview, day);
+    preview.querySelector('#timeline').innerHTML = timelineMarkup(day, preview.querySelector('#pending-filter').checked);
+    fillProgress(preview, day);
+    for (const item of preview.querySelectorAll('.timeline-item')) item.classList.add('is-visible');
+    for (const element of preview.querySelectorAll('[id]')) element.removeAttribute('id');
+    for (const element of preview.querySelectorAll('[for], [aria-labelledby]')) { element.removeAttribute('for'); element.removeAttribute('aria-labelledby'); }
+    preview.classList.add('day-preview');
+    preview.setAttribute('aria-hidden', 'true');
+    preview.inert = true;
+    return preview;
+  }
+
+  // Mette l'anteprima fuori dallo schermo dal lato `dir` (1 = destra, giorno dopo; -1 = sinistra). Il suo inizio sta
+  // subito sotto le linguette (o dove inizia il blocco, se è già più in basso): lì comparirà anche il giorno vero.
+  function openPeek(id, dir) {
+    const nav = $('day-nav');
+    const top = Math.max(dayBlock.getBoundingClientRect().top, nav.getBoundingClientRect().bottom + parseFloat(getComputedStyle(nav).marginBottom));
+    let el = null;
+    try {
+      el = buildPreview(id);
+      const section = dayBlock.parentElement;
+      el.style.top = `${top - section.getBoundingClientRect().top}px`;
+      el.style.left = `${dayBlock.offsetLeft + dir * window.innerWidth}px`;
+      el.style.width = `${dayBlock.offsetWidth}px`;
+      section.appendChild(el);
+      // I pulsanti dei ricordi li aggiorna memories.js a ogni 'timeline:rendered': così anche quelli dell'anteprima.
+      document.dispatchEvent(new CustomEvent('timeline:rendered'));
+    } catch (error) {
+      // Senza anteprima lo scorrimento funziona lo stesso: il blocco esce e il giorno nuovo compare alla fine.
+      console.error('Anteprima del giorno non disponibile:', error);
+      if (el) el.remove();
+      el = null;
+    }
+    return { id, el, top, dx: 0 };
+  }
+
+  // La linguetta del giorno nuovo diventa attiva subito e scivola dalla posizione della vecchia.
+  function markActiveTab(id) {
+    const old = $('day-nav').querySelector('[aria-pressed=true]');
+    const from = old && old.getBoundingClientRect().left;
+    for (const button of $('day-nav').querySelectorAll('[data-day]')) button.setAttribute('aria-pressed', String(Number(button.dataset.day) === id));
+    const tab = $('day-nav').querySelector('[aria-pressed=true]');
+    if (!old || !tab || old === tab) return;
+    tab.animate([{ transform: `translateX(${from - tab.getBoundingClientRect().left}px)` }, { transform: 'none' }], { duration: durBase(), easing: 'cubic-bezier(.65,0,.35,1)' });
+  }
+
+  function selectDay(id, focus = false, peek = null) {
     if (!trip.days.some(day => day.id === id)) return;
-    const animate = motionOK && typeof document.startViewTransition === 'function' && id !== targetOrSelectedDay();
-    const forward = id > targetOrSelectedDay();
+    if (slide) slide.finish();
+    const animate = motionOK && typeof dayBlock.animate === 'function' && id !== state.selectedDay;
     const update = () => {
       state.selectedDay = id;
       save();
-      // Durante la transizione il fade della timeline si sovrapporrebbe allo scivolamento.
+      // Durante lo scorrimento il fade della timeline si sovrapporrebbe al movimento.
       renderDay({ fade: !animate });
       try { window.history.replaceState(null, '', `#giorno-${id}`); } catch (error) { /* Apribile anche in contesti senza History API. */ }
-      if (focus) {
-        $('day-title').focus({preventScroll:true});
-        // Dentro la transizione lo scroll è istantaneo: uno smooth sotto l'animazione la farebbe slittare.
-        $('day-panel').scrollIntoView({behavior: animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
-      }
+      if (focus) $('day-title').focus({preventScroll:true});
     };
-    if (!animate) { update(); return; }
-    if (dayTransition) dayTransition.skipTransition();
-    targetDay = id;
-    document.documentElement.dataset.dayDir = forward ? 'next' : 'prev';
-    const transition = dayTransition = document.startViewTransition(update);
-    // Il giorno cambia comunque dentro update(); qui si segnala solo se qualcosa va storto davvero.
-    transition.updateCallbackDone.catch(error => console.error('Cambio giorno non riuscito:', error));
-    // AbortError è atteso quando un tocco rapido salta la transizione precedente.
-    transition.ready.catch(error => { if (error.name !== 'AbortError') console.error('Animazione del cambio giorno non riuscita:', error); });
-    const clear = () => { if (dayTransition === transition) { dayTransition = null; targetDay = null; } };
-    transition.finished.then(clear, clear);
+    if (!animate) {
+      update();
+      if (focus) $('day-panel').scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
+      return;
+    }
+    const dir = id > state.selectedDay ? 1 : -1;
+    const view = peek || openPeek(id, dir);
+    markActiveTab(id);
+    const keyframes = [{ transform: `translateX(${view.dx}px)` }, { transform: `translateX(${-dir * window.innerWidth}px)` }];
+    const options = { duration: durBase(), easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' };
+    const animations = [dayBlock, view.el].filter(Boolean).map(element => element.animate(keyframes, options));
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      slide = null;
+      for (const animation of animations) animation.cancel();
+      dayBlock.style.transform = '';
+      update();
+      // Il giorno vero prende il posto dell'anteprima, nello stesso punto dello schermo.
+      window.scrollBy({ top: dayBlock.getBoundingClientRect().top - view.top, behavior: 'instant' });
+      if (view.el) view.el.remove();
+    };
+    slide = { id, finish };
+    Promise.all(animations.map(animation => animation.finished)).then(finish, error => {
+      // AbortError è atteso quando finish() annulla le animazioni (tocco rapido): il giorno cambia comunque.
+      if (error.name !== 'AbortError') console.error('Animazione del cambio giorno non riuscita:', error);
+      finish();
+    });
   }
 
   // Piccola festa quando si spunta una tappa: il cerchio fa "pop" e sale un cuoricino.
