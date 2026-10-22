@@ -2,7 +2,7 @@
  * Strategia "prima la rete": con connessione arriva sempre la versione aggiornata;
  * se la rete manca o è troppo lenta (metro, roaming) si usa la copia salvata.
  * Cambiare CACHE_VERSION quando si aggiunge o rinomina un file in PRECACHE. */
-const CACHE_VERSION = 'parigi-v6';
+const CACHE_VERSION = 'parigi-v7';
 const PRECACHE = [
   './',
   './index.html',

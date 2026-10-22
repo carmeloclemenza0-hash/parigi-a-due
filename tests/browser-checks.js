@@ -246,8 +246,8 @@ async (page) => {
     p.on('pageerror', e => errors.push(e.message));
     await p.goto(BASE);
     await p.evaluate(() => navigator.serviceWorker.ready);
-    const cache = await p.evaluate(async () => ({ keys: await caches.keys(), files: (await (await caches.open('parigi-v6')).keys()).length }));
-    check('cache: solo parigi-v6 con 15 file', cache.keys.join() === 'parigi-v6' && cache.files === 15, JSON.stringify(cache));
+    const cache = await p.evaluate(async () => ({ keys: await caches.keys(), files: (await (await caches.open('parigi-v7')).keys()).length }));
+    check('cache: solo parigi-v7 con 15 file', cache.keys.join() === 'parigi-v7' && cache.files === 15, JSON.stringify(cache));
     // Il server locale non comprime: qui si sommano le risorse (foto, font, icone, già compresse di loro);
     // il peso di index.html compresso (come lo serve GitHub Pages) si misura a parte, con gzip.
     const weight = await p.evaluate(() => {
