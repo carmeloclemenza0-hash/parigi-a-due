@@ -986,6 +986,32 @@ async (page) => {
     check('scorrimento: tornato al giorno 2', await p.evaluate(() => location.hash) === '#giorno-2');
     await ctx.close();
   }
+  {
+    // Schermo largo: le linguette non sono sticky, quindi dal fondo di un giorno lungo il blocco è molto sopra lo schermo.
+    // Il giorno nuovo deve aprirsi comunque dall'inizio (cima del pannello vicino all'alto), con il focus sul titolo.
+    const { ctx, p } = await open({ viewport: { width: 1280, height: 800 } }, { hash: '#giorno-2' });
+    await p.locator('#next-day').scrollIntoViewIfNeeded();
+    await p.waitForTimeout(300);
+    await p.locator('#next-day').click();
+    await p.waitForTimeout(600);
+    const wide = await p.evaluate(() => ({ hash: location.hash, top: Math.round(document.getElementById('day-panel').getBoundingClientRect().top), focus: document.activeElement.id }));
+    check('schermo largo: dal fondo del giorno 2 → indirizzo #giorno-3', wide.hash === '#giorno-3', JSON.stringify(wide));
+    check('schermo largo: il giorno 3 si apre con la cima entro lo schermo, in alto', wide.top >= -1 && wide.top <= 40, JSON.stringify(wide));
+    check('schermo largo: focus sul titolo del giorno', wide.focus === 'day-title', JSON.stringify(wide));
+    await ctx.close();
+  }
+  {
+    // Tocco ripetuto sullo stesso giorno di arrivo durante lo scorrimento: ignorato, niente doppio render.
+    // Render attesi: 1 dell'anteprima + 1 del giorno vero.
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-1' });
+    await p.evaluate(() => { window.__renders = 0; document.addEventListener('timeline:rendered', () => { window.__renders++; }); });
+    await p.evaluate(() => { document.getElementById('next-day').click(); document.querySelector('[data-day="2"]').click(); });
+    await p.waitForTimeout(600);
+    const again = await p.evaluate(() => ({ day: document.querySelector('.day-tab[aria-pressed=true]').dataset.day, renders: window.__renders, preview: !!document.querySelector('.day-preview') }));
+    check('tocco ripetuto sul giorno di arrivo: si finisce sul giorno 2', again.day === '2' && !again.preview, JSON.stringify(again));
+    check('tocco ripetuto sul giorno di arrivo: un solo render del giorno (2 con l’anteprima)', again.renders === 2, JSON.stringify(again));
+    await ctx.close();
+  }
 
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));
   const failed = results.filter(r => r.startsWith('FAIL')).length;

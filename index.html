@@ -1088,9 +1088,12 @@ window.PARIS_TRIP = {
 
   // Mette l'anteprima fuori dallo schermo dal lato `dir` (1 = destra, giorno dopo; -1 = sinistra). Il suo inizio sta
   // subito sotto le linguette (o dove inizia il blocco, se è già più in basso): lì comparirà anche il giorno vero.
+  // Sopra i 600 px le linguette non sono sticky e dal fondo di un giorno lungo quel punto è molto sopra lo schermo:
+  // si limita alla parte visibile (0 più lo scroll-padding-top di html), così il giorno nuovo si apre comunque dall'inizio.
   function openPeek(id, dir) {
     const nav = $('day-nav');
-    const top = Math.max(dayBlock.getBoundingClientRect().top, nav.getBoundingClientRect().bottom + parseFloat(getComputedStyle(nav).marginBottom));
+    const visibleTop = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+    const top = Math.max(dayBlock.getBoundingClientRect().top, nav.getBoundingClientRect().bottom + parseFloat(getComputedStyle(nav).marginBottom), visibleTop);
     let el = null;
     try {
       el = buildPreview(id);
@@ -1122,6 +1125,8 @@ window.PARIS_TRIP = {
 
   function selectDay(id, focus = false, peek = null) {
     if (!trip.days.some(day => day.id === id)) return;
+    // Tocco sul giorno verso cui si sta già scorrendo: niente da fare (chiuderlo e rifare sarebbe un doppio render).
+    if (slide && slide.id === id) return;
     if (slide) slide.finish();
     const animate = motionOK && typeof dayBlock.animate === 'function' && id !== state.selectedDay;
     const update = () => {
