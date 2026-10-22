@@ -1259,27 +1259,110 @@ window.PARIS_TRIP = {
   $('pending-filter').addEventListener('change', () => renderTimeline());
   $('prev-day').addEventListener('click', () => selectDay(targetOrSelectedDay() - 1, true));
   $('next-day').addEventListener('click', () => selectDay(targetOrSelectedDay() + 1, true));
-  // Swipe tra i giorni sul pannello: solo gesti nettamente orizzontali e lunghi, non partiti dai bordi
-  // (lì iOS usa il "torna indietro") né da campi, link e pulsanti. I listener passivi non bloccano lo scroll.
-  let swipeStart = null;
-  $('day-panel').addEventListener('touchstart', event => {
+  // Swipe tra i giorni su tutto il blocco del giorno: il blocco segue il dito e dal lato opposto entra l'anteprima del
+  // giorno vicino. Non parte dai bordi (lì iOS usa il "torna indietro"), da campi, link e pulsanti, con più dita o con lo
+  // zoom. Dopo SWIPE_LOCK px si decide la direzione: se il gesto è verticale resta scroll della pagina (touch-action:
+  // pan-y lascia il verticale al browser). Al rilascio si cambia giorno se lo spostamento supera 1/3 dello schermo o se
+  // il colpo è rapido; altrimenti il blocco torna a posto. Ai bordi del viaggio fa l'elastico. I listener sono passivi.
+  const SWIPE_LOCK = 10, SWIPE_FLICK_SPEED = 0.5, SWIPE_FLICK_MIN = 30, SWIPE_EDGE_MAX = 60;
+  let swipe = null;
+  // Animazione di ritorno a posto in corso (si annulla se il dito riparte).
+  let springBack = null;
+
+  function dragTo(gesture, dx) {
+    const id = state.selectedDay + (dx < 0 ? 1 : -1);
+    if (!trip.days.some(day => day.id === id)) {
+      if (gesture.peek) { if (gesture.peek.el) gesture.peek.el.remove(); gesture.peek = null; }
+      gesture.shown = Math.sign(dx) * Math.min(SWIPE_EDGE_MAX, Math.abs(dx) * 0.3);
+      dayBlock.style.transform = `translateX(${gesture.shown}px)`;
+      return;
+    }
+    if (!gesture.peek || gesture.peek.id !== id) {
+      if (gesture.peek && gesture.peek.el) gesture.peek.el.remove();
+      gesture.peek = openPeek(id, dx < 0 ? 1 : -1);
+    }
+    gesture.shown = gesture.peek.dx = dx;
+    dayBlock.style.transform = `translateX(${dx}px)`;
+    if (gesture.peek.el) gesture.peek.el.style.transform = `translateX(${dx}px)`;
+  }
+
+  // Il blocco (e l'eventuale anteprima) torna a posto; senza movimento visibile la pulizia è immediata.
+  function release(gesture) {
+    const elements = [dayBlock, gesture.peek && gesture.peek.el].filter(Boolean);
+    let animations = [];
+    const cleanup = () => {
+      if (springBack !== cleanup) return;
+      springBack = null;
+      // Se il dito riparte prima della fine, l'animazione si ferma qui (annullarla fa scattare AbortError, atteso).
+      for (const animation of animations) animation.cancel();
+      for (const element of elements) element.style.transform = '';
+      if (gesture.peek && gesture.peek.el) gesture.peek.el.remove();
+    };
+    springBack = cleanup;
+    if (!gesture.shown) { cleanup(); return; }
+    animations = elements.map(element => element.animate([{ transform: `translateX(${gesture.shown}px)` }, { transform: 'translateX(0)' }], { duration: durBase(), easing: 'cubic-bezier(.2,.7,.2,1)' }));
+    for (const element of elements) element.style.transform = '';
+    Promise.all(animations.map(animation => animation.finished)).then(cleanup, error => {
+      if (error.name !== 'AbortError') console.error('Ritorno a posto non riuscito:', error);
+      cleanup();
+    });
+  }
+
+  dayBlock.addEventListener('touchstart', event => {
+    // Un gesto ancora aperto (es. secondo dito appoggiato) torna a posto; un cambio o un ritorno in corso si chiudono
+    // subito: il nuovo gesto parte dal giorno giusto.
+    if (swipe) { const gesture = swipe; swipe = null; release(gesture); }
+    if (slide) slide.finish();
+    if (springBack) springBack();
     const touch = event.touches[0];
     const fromEdge = touch.clientX < 24 || touch.clientX > window.innerWidth - 24;
     // Con lo zoom a pellizco un dito che trascina serve a spostarsi nella pagina, non a cambiare giorno.
     const zoomed = window.visualViewport && window.visualViewport.scale > 1.01;
-    swipeStart = event.touches.length === 1 && !fromEdge && !zoomed && !event.target.closest('input, textarea, a, button, label')
-      ? { x: touch.clientX, y: touch.clientY } : null;
+    swipe = event.touches.length === 1 && !fromEdge && !zoomed && !event.target.closest('input, textarea, a, button, label')
+      ? { x0: touch.clientX, y0: touch.clientY, axis: null, shown: 0, peek: null, lastX: touch.clientX, lastT: event.timeStamp, speed: 0 } : null;
   }, { passive: true });
-  $('day-panel').addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
-  $('day-panel').addEventListener('touchend', event => {
-    if (!swipeStart) return;
+
+  dayBlock.addEventListener('touchmove', event => {
+    if (!swipe) return;
+    if (event.touches.length > 1) { const gesture = swipe; swipe = null; release(gesture); return; }
+    const touch = event.touches[0];
+    const dx = touch.clientX - swipe.x0;
+    const dy = touch.clientY - swipe.y0;
+    if (!swipe.axis) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_LOCK) return;
+      swipe.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }
+    if (swipe.axis === 'y') return;
+    const dt = event.timeStamp - swipe.lastT;
+    if (dt > 0) swipe.speed = (touch.clientX - swipe.lastX) / dt;
+    swipe.lastX = touch.clientX;
+    swipe.lastT = event.timeStamp;
+    if (motionOK) dragTo(swipe, dx);
+  }, { passive: true });
+
+  dayBlock.addEventListener('touchcancel', () => {
+    if (!swipe) return;
+    const gesture = swipe; swipe = null;
+    release(gesture);
+  }, { passive: true });
+
+  dayBlock.addEventListener('touchend', event => {
+    if (!swipe) return;
+    const gesture = swipe; swipe = null;
     const touch = event.changedTouches[0];
-    const dx = touch.clientX - swipeStart.x;
-    const dy = touch.clientY - swipeStart.y;
-    swipeStart = null;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(dy)) return;
-    // selectDay ignora da sola i giorni che non esistono (prima del 1, dopo il 5).
-    selectDay(targetOrSelectedDay() + (dx < 0 ? 1 : -1), true);
+    const dx = touch.clientX - gesture.x0;
+    const dy = touch.clientY - gesture.y0;
+    // Senza touchmove (gesti brevissimi) la direzione si decide qui, con la stessa regola.
+    const axis = gesture.axis || (Math.max(Math.abs(dx), Math.abs(dy)) >= SWIPE_LOCK && Math.abs(dx) > Math.abs(dy) ? 'x' : 'y');
+    const id = state.selectedDay + (dx < 0 ? 1 : -1);
+    const far = Math.abs(dx) >= window.innerWidth / 3;
+    const flick = Math.abs(dx) >= SWIPE_FLICK_MIN && Math.sign(gesture.speed) === Math.sign(dx) && Math.abs(gesture.speed) >= SWIPE_FLICK_SPEED;
+    if (axis === 'x' && (far || flick) && trip.days.some(day => day.id === id)) {
+      // L'anteprima giusta è quella della direzione finale del dito (il gesto può aver cambiato verso).
+      const peek = gesture.peek && gesture.peek.id === id ? gesture.peek : null;
+      if (gesture.peek && !peek && gesture.peek.el) gesture.peek.el.remove();
+      selectDay(id, true, peek);
+    } else release(gesture);
   }, { passive: true });
   // La sentinella sta prima delle linguette: quando esce dall'alto dello schermo le linguette sono attaccate.
   // Si legge la posizione a ogni scroll (con rAF) e non con IntersectionObserver: se si salta oltre la sentinella in un

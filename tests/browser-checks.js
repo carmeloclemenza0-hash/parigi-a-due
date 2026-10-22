@@ -1013,6 +1013,95 @@ async (page) => {
     await ctx.close();
   }
 
+  // Trascinamento simulato: touchstart, una serie di touchmove distanziati di `stepMs`, e (se `release`) touchend.
+  const drag = (p, points, { stepMs = 16, release = true } = {}) => p.evaluate(async ([points, stepMs, release]) => {
+    const [x0, y0] = points[0];
+    const target = document.elementFromPoint(x0, y0);
+    const touch = (x, y) => new Touch({ identifier: 1, target, clientX: x, clientY: y });
+    target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [touch(x0, y0)], changedTouches: [touch(x0, y0)] }));
+    for (const [x, y] of points.slice(1)) {
+      await new Promise(resolve => setTimeout(resolve, stepMs));
+      target.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, touches: [touch(x, y)], changedTouches: [touch(x, y)] }));
+    }
+    if (release) { const [x, y] = points[points.length - 1]; target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(x, y)] })); }
+  }, [points, stepMs, release]);
+  const path = ([x0, y0], [x1, y1], steps = 10) => Array.from({ length: steps + 1 }, (_, i) => [x0 + (x1 - x0) * i / steps, y0 + (y1 - y0) * i / steps]);
+  // Alza il dito di un gesto lasciato aperto (`release: false`) nel punto [x, y]: touchend sul blocco del giorno.
+  const lift = (p, [x, y]) => p.evaluate(([x, y]) => {
+    const block = document.querySelector('.journey-layout');
+    const touch = new Touch({ identifier: 1, target: block, clientX: x, clientY: y });
+    block.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch] }));
+  }, [x, y]);
+  // Stato del blocco: spostamento orizzontale (px), anteprima e suo spostamento, giorno attivo (dall'indirizzo).
+  const dragState = p => p.evaluate(() => {
+    const shift = el => el ? Math.round(new DOMMatrix(getComputedStyle(el).transform).m41) : null;
+    const preview = document.querySelector('.day-preview');
+    return { block: shift(document.querySelector('.journey-layout')), preview: shift(preview), title: preview?.querySelector('.day-heading h3')?.textContent ?? null, day: Number(location.hash.slice('#giorno-'.length)) };
+  });
+  {
+    const { ctx, p } = await open({ isMobile: true, hasTouch: true }, { hash: '#giorno-2' });
+    const titles = await p.evaluate(() => window.PARIS_TRIP.days.map(day => day.title));
+    const startY = async () => { await p.locator('#day-panel .day-heading').scrollIntoViewIfNeeded(); const b = await p.locator('#day-panel .day-heading').boundingBox(); return b.y + b.height / 2; };
+    let y = await startY();
+    // Trascinamento lento a metà, dito ancora giù: il blocco segue il dito e l'anteprima del 3 lo accompagna.
+    await drag(p, path([300, y], [200, y]), { stepMs: 40, release: false });
+    const held = await dragState(p);
+    check('swipe: il blocco segue il dito', held.block === -100, JSON.stringify(held));
+    check('swipe: l’anteprima del giorno dopo entra insieme', held.preview === -100 && held.title === titles[2], JSON.stringify(held));
+    // Rilascio lento a 100 px (meno di 1/3 di 390): torna tutto a posto.
+    await lift(p, [200, y]);
+    await p.waitForTimeout(600);
+    const back = await dragState(p);
+    check('swipe: lasciato a metà torna indietro', back.block === 0 && back.preview === null && back.day === 2, JSON.stringify(back));
+    // Lungo e lento: cambia giorno.
+    y = await startY();
+    await drag(p, path([300, y], [120, y]), { stepMs: 40 });
+    await p.waitForTimeout(600);
+    check('swipe: lungo e lento → giorno dopo', (await dragState(p)).day === 3);
+    // Corto ma rapido (50 px in ~24 ms): cambia giorno.
+    y = await startY();
+    await drag(p, path([150, y], [200, y], 3), { stepMs: 8 });
+    await p.waitForTimeout(600);
+    check('swipe: colpo rapido → giorno prima', (await dragState(p)).day === 2);
+    // Verticale: nessuno spostamento laterale, nessuna anteprima.
+    y = await startY();
+    await drag(p, path([200, y], [215, y + 150]), { stepMs: 16, release: false });
+    const vertical = await dragState(p);
+    check('swipe: gesto verticale non sposta il blocco', vertical.block === 0 && vertical.preview === null, JSON.stringify(vertical));
+    await lift(p, [215, y + 150]);
+    check('swipe: dopo il gesto verticale stesso giorno', (await dragState(p)).day === 2);
+    // Anche partendo dal riquadro del mood (fa parte del blocco del giorno).
+    await p.locator('.mood-card').scrollIntoViewIfNeeded();
+    const mb = await p.locator('.mood-card').boundingBox();
+    await drag(p, path([300, mb.y + 20], [100, mb.y + 20]), { stepMs: 16 });
+    await p.waitForTimeout(600);
+    check('swipe: funziona anche dal riquadro del mood', (await dragState(p)).day === 3);
+    // Bordi del viaggio: elastico, niente anteprima, nessun cambio.
+    await p.evaluate(() => { location.hash = '#giorno-1'; }); await p.waitForTimeout(700);
+    y = await startY();
+    await drag(p, path([100, y], [300, y]), { stepMs: 16, release: false });
+    const edge = await dragState(p);
+    check('swipe: prima del giorno 1 fa l’elastico (al massimo 60 px)', edge.block > 0 && edge.block <= 60 && edge.preview === null, JSON.stringify(edge));
+    await lift(p, [300, y]);
+    await p.waitForTimeout(600);
+    const edgeAfter = await dragState(p);
+    check('swipe: dopo l’elastico resta sul giorno 1', edgeAfter.block === 0 && edgeAfter.day === 1, JSON.stringify(edgeAfter));
+    check('swipe: niente scorrimento laterale della pagina', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+    await ctx.close();
+  }
+  {
+    const { ctx, p } = await open({ reducedMotion: 'reduce', isMobile: true, hasTouch: true }, { hash: '#giorno-2' });
+    await p.locator('#day-panel .day-heading').scrollIntoViewIfNeeded();
+    const b = await p.locator('#day-panel .day-heading').boundingBox();
+    const y = b.y + b.height / 2;
+    await drag(p, path([300, y], [120, y]), { stepMs: 16, release: false });
+    const held = await dragState(p);
+    check('movimento ridotto: durante lo swipe il blocco non si sposta', held.block === 0 && held.preview === null, JSON.stringify(held));
+    await lift(p, [120, y]);
+    check('movimento ridotto: swipe valido cambia giorno subito', (await dragState(p)).day === 3);
+    await ctx.close();
+  }
+
   check('console: nessun errore o avviso', errors.length === 0, errors.join(' | '));
   const failed = results.filter(r => r.startsWith('FAIL')).length;
   return `${results.join('\n')}\n\n${results.length - failed}/${results.length} controlli superati`;
